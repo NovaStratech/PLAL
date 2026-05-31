@@ -6,7 +6,7 @@ import {
 } from '@prisma/client';
 import type { Recommendation as RecommendationDTO } from '@plal/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateRecommendationDto } from './dto/recommendation.dto';
+import { CreateRecommendationDto, UpdateRecommendationDto } from './dto/recommendation.dto';
 
 type RecoWithCategory = Prisma.RecommendationGetPayload<{ include: { category: true } }>;
 
@@ -49,6 +49,36 @@ export class RecommendationsService {
     if (reco.userId !== userId) throw new ForbiddenException('Action non autorisée.');
     await this.prisma.recommendation.delete({ where: { id } });
     return { success: true };
+  }
+
+  async update(
+    userId: string,
+    id: string,
+    dto: UpdateRecommendationDto,
+  ): Promise<RecommendationDTO> {
+    const reco = await this.prisma.recommendation.findUnique({ where: { id } });
+    if (!reco) throw new NotFoundException('Recommandation introuvable.');
+    if (reco.userId !== userId) throw new ForbiddenException('Action non autorisée.');
+
+    if (dto.categoryId) {
+      const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
+      if (!category) throw new NotFoundException('Catégorie introuvable.');
+    }
+
+    const updated = await this.prisma.recommendation.update({
+      where: { id },
+      data: {
+        categoryId: dto.categoryId,
+        title: dto.title,
+        description: dto.description,
+        city: dto.city,
+        type: dto.type as RecommendationType | undefined,
+        visibility: dto.visibility as RecommendationVisibility | undefined,
+      },
+      include: { category: true },
+    });
+
+    return this.toDto(updated);
   }
 
   private toDto(r: RecoWithCategory): RecommendationDTO {

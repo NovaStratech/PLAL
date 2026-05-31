@@ -23,7 +23,7 @@ export class SearchService {
     private readonly network: NetworkService,
   ) {}
 
-  async search(userId: string, query: string, city?: string): Promise<SearchResult[]> {
+  async search(userId: string, query: string, city?: string, categoryId?: string): Promise<SearchResult[]> {
     const q = query?.trim() ?? '';
 
     const { level1, level2 } = await this.network.buildGraph(userId);
@@ -45,11 +45,16 @@ export class SearchService {
       ? { city: { contains: city.trim(), mode: 'insensitive' } }
       : {};
 
+    const categoryFilter: Prisma.RecommendationWhereInput = categoryId?.trim()
+      ? { categoryId: categoryId.trim() }
+      : {};
+
     const recos = await this.prisma.recommendation.findMany({
       where: {
         userId: { in: reachableIds },
         ...textFilter,
         ...cityFilter,
+        ...categoryFilter,
       },
       include: { category: true, user: { include: { profile: true } } },
       orderBy: { createdAt: 'desc' },

@@ -1,8 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RecommendationsService } from './recommendations.service';
-import { CreateRecommendationDto } from './dto/recommendation.dto';
+import { CreateRecommendationDto, UpdateRecommendationDto } from './dto/recommendation.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('recommendations')
@@ -17,6 +17,15 @@ export class RecommendationsController {
   @Post()
   create(@CurrentUser('userId') userId: string, @Body() dto: CreateRecommendationDto) {
     return this.recommendations.create(userId, dto);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser('userId') userId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateRecommendationDto,
+  ) {
+    return this.recommendations.update(userId, id, dto);
   }
 
   @Delete(':id')

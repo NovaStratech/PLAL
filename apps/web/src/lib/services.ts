@@ -51,11 +51,26 @@ export const services = {
     type: string;
     visibility?: string;
   }) => api.post<Recommendation>('/recommendations', data),
+  updateRecommendation: (
+    id: string,
+    data: {
+      categoryId?: string;
+      title?: string;
+      description?: string;
+      city?: string;
+      type?: string;
+      visibility?: string;
+    },
+  ) => api.patch<Recommendation>(`/recommendations/${id}`, data),
   deleteRecommendation: (id: string) => api.delete<{ success: true }>(`/recommendations/${id}`),
 
   // Search
-  search: (q: string, city?: string) =>
-    api.get<SearchResult[]>(`/search?q=${encodeURIComponent(q)}${city ? `&city=${encodeURIComponent(city)}` : ''}`),
+  search: (q: string, city?: string, categoryId?: string) =>
+    api.get<SearchResult[]>(
+      `/search?q=${encodeURIComponent(q)}` +
+        `${city ? `&city=${encodeURIComponent(city)}` : ''}` +
+        `${categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : ''}`,
+    ),
 
   // Introduction requests
   createIntroduction: (recommendationId: string, message: string) =>

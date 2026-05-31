@@ -13,7 +13,8 @@ export class SearchController {
     @CurrentUser('userId') userId: string,
     @Query('q') q = '',
     @Query('city') city?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
-    return this.search.search(userId, q, city);
+    return this.search.search(userId, q, city, categoryId);
   }
 }

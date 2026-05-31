@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { services } from '@/lib/services';
 import { Avatar, Spinner } from './ui';
 
 const NAV = [
@@ -41,6 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             PLAL
           </Link>
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <Link href="/profil" aria-label="Profil">
               <Avatar
                 firstName={user.profile?.firstName ?? '?'}
@@ -111,13 +113,6 @@ function NavLink({
   );
 }
 
-function HomeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M3 11l9-8 9 8M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 function SearchIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -126,6 +121,57 @@ function SearchIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+function NotificationBell() {
+  const [unread, setUnread] = useState(0);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    let active = true;
+    services
+      .getNotifications()
+      .then((items) => {
+        if (active) setUnread(items.filter((n) => !n.read).length);
+      })
+      .catch(() => {
+        /* silencieux : la cloche ne doit pas casser la nav */
+      });
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
+
+  return (
+    <Link href="/notifications" aria-label="Notifications" className="relative text-ink/60 hover:text-trust-700">
+      <BellIcon className="h-6 w-6" />
+      {unread > 0 && (
+        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-warmth-500 px-1 text-[10px] font-semibold text-white">
+          {unread > 9 ? '9+' : unread}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path
+        d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function HomeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 11l9-8 9 8M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function HeartIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

@@ -25,6 +25,7 @@ function Recommandations() {
   const [recos, setRecos] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Recommendation | null>(null);
 
   async function load() {
     setRecos(await services.getMyRecommendations());
@@ -34,6 +35,16 @@ function Recommandations() {
     load().finally(() => setLoading(false));
   }, []);
 
+  function openCreate() {
+    setEditing(null);
+    setShowForm((v) => !v);
+  }
+
+  function openEdit(reco: Recommendation) {
+    setEditing(reco);
+    setShowForm(true);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -41,16 +52,18 @@ function Recommandations() {
           <h1 className="text-2xl font-semibold">Mes recommandations</h1>
           <p className="mt-1 text-ink/60">Les personnes de confiance que tu connais.</p>
         </div>
-        <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
-          {showForm ? 'Fermer' : '+ Déclarer'}
+        <button onClick={openCreate} className="btn-primary">
+          {showForm && !editing ? 'Fermer' : '+ Déclarer'}
         </button>
       </div>
 
       {showForm && (
         <RecoForm
-          onCreated={async () => {
+          editing={editing}
+          onSaved={async () => {
             await load();
             setShowForm(false);
+            setEditing(null);
           }}
         />
       )}
@@ -81,15 +94,23 @@ function Recommandations() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={async () => {
-                    await services.deleteRecommendation(r.id);
-                    load();
-                  }}
-                  className="text-sm text-ink/40 hover:text-red-600"
-                >
-                  Supprimer
-                </button>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <button
+                    onClick={() => openEdit(r)}
+                    className="text-sm text-ink/40 hover:text-trust-700"
+                  >
+                    Éditer
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await services.deleteRecommendation(r.id);
+                      load();
+                    }}
+                    className="text-sm text-ink/40 hover:text-red-600"
+                  >
+                    Supprimer
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -99,16 +120,22 @@ function Recommandations() {
   );
 }
 
-function RecoForm({ onCreated }: { onCreated: () => void }) {
+function RecoForm({
+  editing,
+  onSaved,
+}: {
+  editing: Recommendation | null;
+  onSaved: () => void;
+}) {
   const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
-  const [categoryId, setCategoryId] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [city, setCity] = useState(user?.profile?.city ?? '');
-  const [type, setType] = useState<RecommendationType>(RecommendationType.PERSON);
+  const [categoryId, setCategoryId] = useState(editing?.category.id ?? '');
+  const [title, setTitle] = useState(editing?.title ?? '');
+  const [description, setDescription] = useState(editing?.description ?? '');
+  const [city, setCity] = useState(editing?.city ?? user?.profile?.city ?? '');
+  const [type, setType] = useState<RecommendationType>(editing?.type ?? RecommendationType.PERSON);
   const [visibility, setVisibility] = useState<RecommendationVisibility>(
-    RecommendationVisibility.FRIENDS_OF_FRIENDS,
+    editing?.visibility ?? RecommendationVisibility.FRIENDS_OF_FRIENDS,
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -122,17 +149,28 @@ function RecoForm({ onCreated }: { onCreated: () => void }) {
     setLoading(true);
     setError('');
     try {
-      await services.createRecommendation({
-        categoryId,
-        title,
-        description: description || undefined,
-        city: city || undefined,
-        type,
-        visibility,
-      });
-      onCreated();
+      if (editing) {
+        await services.updateRecommendation(editing.id, {
+          categoryId,
+          title,
+          description: description || undefined,
+          city: city || undefined,
+          type,
+          visibility,
+        });
+      } else {
+        await services.createRecommendation({
+          categoryId,
+          title,
+          description: description || undefined,
+          city: city || undefined,
+          type,
+          visibility,
+        });
+      }
+      onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Création impossible.');
+      setError(err instanceof ApiError ? err.message : 'Enregistrement impossible.');
     } finally {
       setLoading(false);
     }
@@ -140,7 +178,11 @@ function RecoForm({ onCreated }: { onCreated: () => void }) {
 
   return (
     <form onSubmit={submit} className="card space-y-4">
-      <p className="font-medium">Tu connais quelqu&apos;un de fiable dans quel domaine ?</p>
+      <p className="font-medium">
+        {editing
+          ? 'Modifier ta recommandation'
+          : 'Tu connais quelqu\u2019un de fiable dans quel domaine ?'}
+      </p>
       <div>
         <label className="label">Domaine</label>
         <select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
@@ -204,7 +246,11 @@ function RecoForm({ onCreated }: { onCreated: () => void }) {
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button type="submit" className="btn-primary w-full" disabled={loading}>
-        {loading ? 'Enregistrement…' : 'Déclarer la recommandation'}
+        {loading
+          ? 'Enregistrement…'
+          : editing
+            ? 'Enregistrer les modifications'
+            : 'Déclarer la recommandation'}
       </button>
     </form>
   );
