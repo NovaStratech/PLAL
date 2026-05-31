@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install -g pnpm@9.15.9 && pnpm install --no-frozen-lockfile",
+  "installCommand": "npm install -g pnpm@9.15.9 && pnpm install --no-frozen-lockfile --prod=false",
   "buildCommand": "pnpm exec prisma generate",
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "functions": {
