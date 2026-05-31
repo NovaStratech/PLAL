@@ -1,5 +1,3 @@
 {
-  "installCommand": "npm install -g pnpm@9.15.9 && cd ../.. && pnpm install --no-frozen-lockfile",
-  "buildCommand": "node ../../node_modules/.bin/next build",
-  "outputDirectory": ".next"
+  "installCommand": "npm install -g pnpm@9.15.9 && cd ../.. && pnpm install --no-frozen-lockfile"
 }
