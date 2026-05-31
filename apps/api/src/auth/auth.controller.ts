@@ -1,0 +1,34 @@
+import { Body, Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { LoginDto, RegisterDto } from './dto/auth.dto';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly auth: AuthService) {}
+
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.auth.register(dto);
+  }
+
+  @Post('login')
+  @HttpCode(200)
+  login(@Body() dto: LoginDto) {
+    return this.auth.login(dto);
+  }
+
+  @Post('logout')
+  @HttpCode(200)
+  logout() {
+    // JWT stateless : la déconnexion est gérée côté client (suppression du token).
+    return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  me(@CurrentUser('userId') userId: string) {
+    return this.auth.me(userId);
+  }
+}

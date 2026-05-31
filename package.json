@@ -1,0 +1,25 @@
+{
+  "name": "plal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Réseau de confiance humaine — numériser le bouche-à-oreille",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "api:migrate": "pnpm --filter @plal/api prisma migrate dev",
+    "api:seed": "pnpm --filter @plal/api db:seed",
+    "api:dev": "pnpm --filter @plal/api dev",
+    "web:dev": "pnpm --filter @plal/web dev"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  }
+}

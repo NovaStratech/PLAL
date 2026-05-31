@@ -1,0 +1,155 @@
+// Prisma schema — PLAL "réseau de confiance humaine"
+
+generator client {
+  provider      = "prisma-client-js"
+  // "native" pour le dev local (macOS/Linux), "rhel-openssl-3.0.x" pour le runtime serverless Vercel
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  // DATABASE_URL : connexion poolée (pgBouncer, port 6543 sur Supabase) utilisée au runtime
+  url      = env("DATABASE_URL")
+  // DIRECT_URL : connexion directe (port 5432) utilisée par les migrations (prisma migrate / db push)
+  directUrl = env("DIRECT_URL")
+}
+
+enum FriendshipStatus {
+  pending
+  accepted
+  rejected
+}
+
+enum RecommendationType {
+  person
+  place
+  activity
+  service
+}
+
+enum RecommendationVisibility {
+  friends
+  friends_of_friends
+}
+
+enum IntroductionRequestStatus {
+  pending
+  accepted
+  declined
+}
+
+enum NotificationType {
+  friend_request
+  friend_request_accepted
+  introduction_request
+  introduction_accepted
+  introduction_declined
+}
+
+model User {
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  passwordHash         String
+  emailVerified        Boolean  @default(false)
+  onboardingCompleted  Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  profile              Profile?
+
+  sentFriendships      Friendship[] @relation("FriendshipRequester")
+  receivedFriendships  Friendship[] @relation("FriendshipReceiver")
+
+  recommendations      Recommendation[]
+
+  sentIntroductions     IntroductionRequest[] @relation("IntroRequester")
+  receivedIntroductions IntroductionRequest[] @relation("IntroRecommender")
+
+  notifications        Notification[]
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String?
+  city      String?
+  country   String?
+  photoUrl  String?
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  receiverId  String
+  requester   User             @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver    User             @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  status      FriendshipStatus @default(pending)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([requesterId, receiverId])
+  @@index([receiverId])
+  @@index([status])
+}
+
+model Category {
+  id              String           @id @default(cuid())
+  slug            String           @unique
+  name            String
+  recommendations Recommendation[]
+}
+
+model Recommendation {
+  id          String                   @id @default(cuid())
+  userId      String
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category                 @relation(fields: [categoryId], references: [id])
+  title       String
+  description String?
+  city        String?
+  type        RecommendationType       @default(person)
+  visibility  RecommendationVisibility @default(friends_of_friends)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  introductionRequests IntroductionRequest[]
+
+  @@index([userId])
+  @@index([categoryId])
+}
+
+model IntroductionRequest {
+  id               String                    @id @default(cuid())
+  requesterId      String
+  recommenderId    String
+  recommendationId String
+  requester        User                      @relation("IntroRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recommender      User                      @relation("IntroRecommender", fields: [recommenderId], references: [id], onDelete: Cascade)
+  recommendation   Recommendation            @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  message          String
+  responseMessage  String?
+  status           IntroductionRequestStatus @default(pending)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([requesterId])
+  @@index([recommenderId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  payload   Json             @default("{}")
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+}
