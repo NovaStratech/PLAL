@@ -48,6 +48,9 @@ export function SearchResultCard({ result }: { result: SearchResult }) {
           <p className="mt-1 text-ink/80">
             <span className="font-medium">{result.title}</span>
             {result.city && <span className="text-ink/50"> · {result.city}</span>}
+            {result.distanceKm != null && (
+              <span className="text-trust-700"> · à {result.distanceKm} km</span>
+            )}
           </p>
           {result.description && (
             <p className="mt-1 text-sm text-ink/60">{result.description}</p>

@@ -28,6 +28,11 @@ export class RegisterDto {
   @IsString()
   @MaxLength(80)
   country?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  inviteToken?: string;
 }
 
 export class LoginDto {

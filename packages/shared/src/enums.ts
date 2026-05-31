@@ -30,6 +30,13 @@ export enum NotificationType {
   INTRODUCTION_REQUEST = 'introduction_request',
   INTRODUCTION_ACCEPTED = 'introduction_accepted',
   INTRODUCTION_DECLINED = 'introduction_declined',
+  INVITATION_ACCEPTED = 'invitation_accepted',
+}
+
+export enum InvitationStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  EXPIRED = 'expired',
 }
 
 /** Distance relationnelle dans le réseau. */

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import type { AuthResponse, AuthUser } from '@plal/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { InvitationsService } from '../invitations/invitations.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly invitations: InvitationsService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponse> {
@@ -35,6 +37,12 @@ export class AuthService {
       },
       include: { profile: true },
     });
+
+    // Si l'inscription provient d'un lien d'invitation, on relie d'office
+    // le nouvel inscrit à l'inviteur (amitié acceptée + notification).
+    if (dto.inviteToken) {
+      await this.invitations.acceptForNewUser(dto.inviteToken, user.id);
+    }
 
     return this.buildAuthResponse(user.id, user.email, user.emailVerified, user.onboardingCompleted, user.profile);
   }

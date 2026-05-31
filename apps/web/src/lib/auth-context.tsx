@@ -12,6 +12,7 @@ interface RegisterInput {
   lastName?: string;
   city?: string;
   country?: string;
+  inviteToken?: string;
 }
 
 interface AuthContextValue {

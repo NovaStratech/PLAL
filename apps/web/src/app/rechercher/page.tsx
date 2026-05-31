@@ -24,10 +24,14 @@ function Recherche() {
   const [query, setQuery] = useState(initial);
   const [city, setCity] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [radiusKm, setRadiusKm] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [submitted, setSubmitted] = useState<{ q: string; city: string; categoryId: string } | null>(
-    initial ? { q: initial, city: '', categoryId: '' } : null,
-  );
+  const [submitted, setSubmitted] = useState<{
+    q: string;
+    city: string;
+    categoryId: string;
+    radiusKm: number;
+  } | null>(initial ? { q: initial, city: '', categoryId: '', radiusKm: 0 } : null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -43,14 +47,19 @@ function Recherche() {
     setLoading(true);
     setSearched(true);
     services
-      .search(submitted.q.trim(), submitted.city.trim() || undefined, submitted.categoryId || undefined)
+      .search(
+        submitted.q.trim(),
+        submitted.city.trim() || undefined,
+        submitted.categoryId || undefined,
+        submitted.radiusKm || undefined,
+      )
       .then(setResults)
       .finally(() => setLoading(false));
   }, [submitted]);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitted({ q: query, city, categoryId });
+    setSubmitted({ q: query, city, categoryId, radiusKm });
   }
 
   const directCount = results.filter((r) => r.distance === 'direct').length;
@@ -94,6 +103,27 @@ function Recherche() {
               </option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="radius">
+            Distance — autour de ma ville
+          </label>
+          <select
+            id="radius"
+            className="input"
+            value={radiusKm}
+            onChange={(e) => setRadiusKm(Number(e.target.value))}
+          >
+            <option value={0}>Partout dans mon réseau</option>
+            <option value={5}>À moins de 5 km</option>
+            <option value={10}>À moins de 10 km</option>
+            <option value={25}>À moins de 25 km</option>
+            <option value={50}>À moins de 50 km</option>
+            <option value={100}>À moins de 100 km</option>
+          </select>
+          <p className="mt-1 text-xs text-ink/40">
+            Renseigne ta ville dans ton profil pour activer le filtre par distance.
+          </p>
         </div>
       </form>
 

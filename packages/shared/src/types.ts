@@ -1,6 +1,7 @@
 import {
   FriendshipStatus,
   IntroductionRequestStatus,
+  InvitationStatus,
   NotificationType,
   RecommendationType,
   RecommendationVisibility,
@@ -66,6 +67,7 @@ export interface SearchResult {
   category: Category;
   helper: PublicProfile & { userId: string };
   distance: RelationalDistance;
+  distanceKm: number | null;
 }
 
 export interface IntroductionRequest {
@@ -87,4 +89,20 @@ export interface NotificationItem {
   read: boolean;
   payload: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface Invitation {
+  id: string;
+  token: string;
+  email: string | null;
+  status: InvitationStatus;
+  url: string;
+  acceptedById: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface InvitationPreview {
+  inviterFirstName: string;
+  valid: boolean;
 }

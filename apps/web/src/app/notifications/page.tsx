@@ -137,6 +137,8 @@ function describe(item: NotificationItem): { text: string; href: string | null }
       return { text: `${name} a accepté ta demande de mise en relation.`, href: '/demandes' };
     case NotificationType.INTRODUCTION_DECLINED:
       return { text: `${name} a décliné ta demande de mise en relation.`, href: '/demandes' };
+    case NotificationType.INVITATION_ACCEPTED:
+      return { text: `${name} a rejoint PLAL grâce à ton invitation. Vous êtes désormais amis.`, href: '/amis' };
     default:
       return { text: 'Nouvelle notification.', href: null };
   }

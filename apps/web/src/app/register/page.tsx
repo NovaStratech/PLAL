@@ -1,17 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { ApiError } from '@/lib/api';
+import { services } from '@/lib/services';
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const { register } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite') ?? '';
   const [form, setForm] = useState({ firstName: '', email: '', password: '' });
+  const [inviterName, setInviterName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    services
+      .getInvitationPreview(inviteToken)
+      .then((preview) => {
+        if (preview.valid) setInviterName(preview.inviterFirstName);
+      })
+      .catch(() => {
+        /* invitation invalide : on ignore, inscription normale. */
+      });
+  }, [inviteToken]);
 
   function update(key: keyof typeof form, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -22,7 +46,7 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await register(form);
+      await register({ ...form, inviteToken: inviteToken || undefined });
       router.push('/onboarding');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Inscription impossible.');
@@ -40,6 +64,13 @@ export default function RegisterPage() {
         <div className="card">
           <h1 className="text-xl font-semibold">Crée ton réseau de confiance</h1>
           <p className="mt-1 text-sm text-ink/60">Quelques secondes suffisent pour commencer.</p>
+
+          {inviterName && (
+            <div className="mt-4 rounded-xl border border-trust-100 bg-trust-100/40 px-4 py-3 text-sm text-trust-700">
+              <span className="font-semibold">{inviterName}</span> t&apos;invite à le rejoindre. Vous
+              serez automatiquement amis.
+            </div>
+          )}
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div>

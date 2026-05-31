@@ -3,11 +3,13 @@ import type {
   Category,
   Friendship,
   IntroductionRequest,
+  Invitation,
+  InvitationPreview,
   NotificationItem,
   Recommendation,
   SearchResult,
 } from '@plal/shared';
-import { api } from './api';
+import { api, apiFetch } from './api';
 
 export interface UserSearchResult {
   userId: string;
@@ -65,11 +67,12 @@ export const services = {
   deleteRecommendation: (id: string) => api.delete<{ success: true }>(`/recommendations/${id}`),
 
   // Search
-  search: (q: string, city?: string, categoryId?: string) =>
+  search: (q: string, city?: string, categoryId?: string, radiusKm?: number) =>
     api.get<SearchResult[]>(
       `/search?q=${encodeURIComponent(q)}` +
         `${city ? `&city=${encodeURIComponent(city)}` : ''}` +
-        `${categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : ''}`,
+        `${categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : ''}` +
+        `${radiusKm ? `&radiusKm=${radiusKm}` : ''}`,
     ),
 
   // Introduction requests
@@ -84,4 +87,11 @@ export const services = {
   getNotifications: () => api.get<NotificationItem[]>('/notifications'),
   markNotificationRead: (id: string) => api.patch<{ success: true }>(`/notifications/${id}/read`),
   markAllNotificationsRead: () => api.patch<{ success: true }>('/notifications/read-all'),
+
+  // Invitations
+  createInvitation: (email?: string) =>
+    api.post<Invitation>('/invitations', email ? { email } : {}),
+  getMyInvitations: () => api.get<Invitation[]>('/invitations'),
+  getInvitationPreview: (token: string) =>
+    apiFetch<InvitationPreview>(`/invitations/${encodeURIComponent(token)}`, { auth: false }),
 };

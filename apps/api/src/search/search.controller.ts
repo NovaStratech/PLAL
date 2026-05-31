@@ -14,7 +14,15 @@ export class SearchController {
     @Query('q') q = '',
     @Query('city') city?: string,
     @Query('categoryId') categoryId?: string,
+    @Query('radiusKm') radiusKm?: string,
   ) {
-    return this.search.search(userId, q, city, categoryId);
+    const radius = radiusKm ? Number(radiusKm) : undefined;
+    return this.search.search(
+      userId,
+      q,
+      city,
+      categoryId,
+      Number.isFinite(radius) ? radius : undefined,
+    );
   }
 }

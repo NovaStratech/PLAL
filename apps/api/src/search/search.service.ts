@@ -3,6 +3,7 @@ import { Prisma, RecommendationVisibility } from '@prisma/client';
 import { RelationalDistance, type SearchResult } from '@plal/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NetworkService } from '../network/network.service';
+import { haversineKm, type GeoPoint } from '../network/geocoding.service';
 
 type RecoWithRelations = Prisma.RecommendationGetPayload<{
   include: { category: true; user: { include: { profile: true } } };
@@ -23,12 +24,27 @@ export class SearchService {
     private readonly network: NetworkService,
   ) {}
 
-  async search(userId: string, query: string, city?: string, categoryId?: string): Promise<SearchResult[]> {
+  async search(
+    userId: string,
+    query: string,
+    city?: string,
+    categoryId?: string,
+    radiusKm?: number,
+  ): Promise<SearchResult[]> {
     const q = query?.trim() ?? '';
 
     const { level1, level2 } = await this.network.buildGraph(userId);
     const reachableIds = [...level1, ...level2];
     if (reachableIds.length === 0) return [];
+
+    // Origine = position du chercheur (pour calcul de distance / filtre rayon).
+    let origin: GeoPoint | null = null;
+    if (radiusKm && radiusKm > 0) {
+      const me = await this.prisma.profile.findUnique({ where: { userId } });
+      if (me?.latitude != null && me?.longitude != null) {
+        origin = { latitude: me.latitude, longitude: me.longitude };
+      }
+    }
 
     const textFilter: Prisma.RecommendationWhereInput = q
       ? {
@@ -73,13 +89,41 @@ export class SearchService {
       const profile = reco.user.profile;
       if (!profile) continue;
 
-      results.push(this.toResult(reco, isDirect ? RelationalDistance.DIRECT : RelationalDistance.FRIEND_OF_FRIEND, profile));
+      let distanceKm: number | null = null;
+      if (origin && reco.latitude != null && reco.longitude != null) {
+        distanceKm =
+          Math.round(
+            haversineKm(origin, { latitude: reco.latitude, longitude: reco.longitude }) * 10,
+          ) / 10;
+      }
+
+      // Filtre rayon : si un rayon est demandé et qu'on a une origine,
+      // on exclut les recos hors rayon (ou sans coordonnées).
+      if (origin && radiusKm && radiusKm > 0) {
+        if (distanceKm == null || distanceKm > radiusKm) continue;
+      }
+
+      results.push(
+        this.toResult(
+          reco,
+          isDirect ? RelationalDistance.DIRECT : RelationalDistance.FRIEND_OF_FRIEND,
+          profile,
+          distanceKm,
+        ),
+      );
     }
 
-    // Amis directs d'abord, puis amis d'amis.
-    results.sort((a, b) =>
-      a.distance === b.distance ? 0 : a.distance === RelationalDistance.DIRECT ? -1 : 1,
-    );
+    // Amis directs d'abord, puis amis d'amis ; à distance relationnelle égale,
+    // les plus proches géographiquement d'abord (quand la distance est connue).
+    results.sort((a, b) => {
+      if (a.distance !== b.distance) {
+        return a.distance === RelationalDistance.DIRECT ? -1 : 1;
+      }
+      if (a.distanceKm == null && b.distanceKm == null) return 0;
+      if (a.distanceKm == null) return 1;
+      if (b.distanceKm == null) return -1;
+      return a.distanceKm - b.distanceKm;
+    });
 
     return results;
   }
@@ -88,6 +132,7 @@ export class SearchService {
     reco: RecoWithRelations,
     distance: RelationalDistance,
     profile: NonNullable<RecoWithRelations['user']['profile']>,
+    distanceKm: number | null = null,
   ): SearchResult {
     return {
       recommendationId: reco.id,
@@ -107,6 +152,7 @@ export class SearchService {
         bio: profile.bio,
       },
       distance,
+      distanceKm,
     };
   }
 }

@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthUser } from '@plal/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { GeocodingService } from '../network/geocoding.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class ProfilesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly geocoding: GeocodingService,
+  ) {}
 
   async getMe(userId: string): Promise<AuthUser> {
     const user = await this.prisma.user.findUniqueOrThrow({
@@ -34,12 +38,22 @@ export class ProfilesService {
   async update(userId: string, dto: UpdateProfileDto): Promise<AuthUser> {
     const { onboardingCompleted, ...profileData } = dto;
 
+    const geo =
+      profileData.city !== undefined
+        ? await this.geocoding.geocodeCity(profileData.city)
+        : undefined;
+
     await this.prisma.user.update({
       where: { id: userId },
       data: {
         ...(onboardingCompleted !== undefined ? { onboardingCompleted } : {}),
         profile: {
-          update: profileData,
+          update: {
+            ...profileData,
+            ...(geo !== undefined
+              ? { latitude: geo?.latitude ?? null, longitude: geo?.longitude ?? null }
+              : {}),
+          },
         },
       },
     });

@@ -6,17 +6,23 @@ import {
 } from '@prisma/client';
 import type { Recommendation as RecommendationDTO } from '@plal/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { GeocodingService } from '../network/geocoding.service';
 import { CreateRecommendationDto, UpdateRecommendationDto } from './dto/recommendation.dto';
 
 type RecoWithCategory = Prisma.RecommendationGetPayload<{ include: { category: true } }>;
 
 @Injectable()
 export class RecommendationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly geocoding: GeocodingService,
+  ) {}
 
   async create(userId: string, dto: CreateRecommendationDto): Promise<RecommendationDTO> {
     const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
     if (!category) throw new NotFoundException('Catégorie introuvable.');
+
+    const geo = await this.geocoding.geocodeCity(dto.city);
 
     const reco = await this.prisma.recommendation.create({
       data: {
@@ -25,6 +31,8 @@ export class RecommendationsService {
         title: dto.title,
         description: dto.description,
         city: dto.city,
+        latitude: geo?.latitude ?? null,
+        longitude: geo?.longitude ?? null,
         type: dto.type as RecommendationType,
         visibility: (dto.visibility as RecommendationVisibility) ?? RecommendationVisibility.friends_of_friends,
       },
@@ -65,6 +73,9 @@ export class RecommendationsService {
       if (!category) throw new NotFoundException('Catégorie introuvable.');
     }
 
+    const geo =
+      dto.city !== undefined ? await this.geocoding.geocodeCity(dto.city) : undefined;
+
     const updated = await this.prisma.recommendation.update({
       where: { id },
       data: {
@@ -72,6 +83,9 @@ export class RecommendationsService {
         title: dto.title,
         description: dto.description,
         city: dto.city,
+        ...(geo !== undefined
+          ? { latitude: geo?.latitude ?? null, longitude: geo?.longitude ?? null }
+          : {}),
         type: dto.type as RecommendationType | undefined,
         visibility: dto.visibility as RecommendationVisibility | undefined,
       },

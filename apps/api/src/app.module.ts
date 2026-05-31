@@ -11,6 +11,7 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
 import { SearchModule } from './search/search.module';
 import { IntroductionRequestsModule } from './introduction-requests/introduction-requests.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { InvitationsModule } from './invitations/invitations.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     SearchModule,
     IntroductionRequestsModule,
     NotificationsModule,
+    InvitationsModule,
   ],
 })
 export class AppModule {}

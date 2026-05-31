@@ -56,6 +56,8 @@ function Amis() {
 
       <AddFriends onChanged={load} />
 
+      <InviteFriends />
+
       {incoming.length > 0 && (
         <section>
           <h2 className="mb-2 font-semibold">Demandes reçues ({incoming.length})</h2>
@@ -187,6 +189,71 @@ function AddFriends({ onChanged }: { onChanged: () => void }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InviteFriends() {
+  const [link, setLink] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function generate() {
+    setLoading(true);
+    try {
+      const invitation = await services.createInvitation();
+      setLink(invitation.url);
+      setCopied(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function share() {
+    if (!link) return;
+    const shareData = {
+      title: 'Rejoins-moi sur PLAL',
+      text: 'Rejoins mon réseau de confiance sur PLAL.',
+      url: link,
+    };
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch {
+        // l'utilisateur a annulé le partage : on retombe sur la copie.
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  }
+
+  return (
+    <div className="card">
+      <label className="label">Inviter un ami qui n&apos;est pas encore sur PLAL</label>
+      <p className="text-sm text-ink/60">
+        Génère un lien personnel : ton ami devient automatiquement ton ami à son inscription.
+      </p>
+      {!link ? (
+        <button onClick={generate} disabled={loading} className="btn-secondary mt-3 px-4 py-2 text-sm">
+          {loading ? 'Génération…' : 'Générer un lien d’invitation'}
+        </button>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <input className="input flex-1" value={link} readOnly onFocus={(e) => e.target.select()} />
+            <button onClick={share} className="btn-primary whitespace-nowrap px-3 py-2 text-xs">
+              {copied ? 'Copié !' : 'Partager'}
+            </button>
+          </div>
+          <button onClick={generate} disabled={loading} className="text-xs text-ink/40 hover:text-trust-700">
+            Générer un nouveau lien
+          </button>
         </div>
       )}
     </div>
