@@ -6,6 +6,7 @@ import { NotificationType, type NotificationItem } from '@plal/shared';
 import { services } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
 import { EmptyState, Spinner } from '@/components/ui';
+import { CardSkeleton } from '@/components/skeleton';
 
 export default function NotificationsPage() {
   return (
@@ -68,7 +69,7 @@ function Notifications() {
       </div>
 
       {loading ? (
-        <Spinner />
+        <div className="space-y-2"><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>
       ) : items.length === 0 ? (
         <EmptyState
           title="Aucune notification"

@@ -7,11 +7,12 @@ import { services } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
 import { SearchResultCard } from '@/components/search-result-card';
 import { EmptyState, Spinner } from '@/components/ui';
+import { CardSkeleton } from '@/components/skeleton';
 
 export default function RecherchePage() {
   return (
     <AppShell>
-      <Suspense fallback={<Spinner />}>
+      <Suspense fallback={<div className="space-y-3 pt-6"><CardSkeleton /><CardSkeleton /></div>}>
         <Recherche />
       </Suspense>
     </AppShell>
@@ -127,7 +128,7 @@ function Recherche() {
         </div>
       </form>
 
-      {loading && <Spinner />}
+      {loading && <div className="space-y-3"><CardSkeleton /><CardSkeleton /></div>}
 
       {!loading && searched && results.length > 0 && (
         <>

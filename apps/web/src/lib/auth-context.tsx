@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AuthResponse, AuthUser } from '@plal/shared';
-import { api, setToken, getToken } from './api';
+import { api, setToken, getToken, clearTokens, setRefreshToken, onTokenExpired } from './api';
 
 interface RegisterInput {
   email: string;
@@ -32,6 +32,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  const handleAuthExpired = useCallback(() => {
+    clearTokens();
+    setUser(null);
+    // Ne pas rediriger si déjà sur login
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      router.push('/login');
+    }
+  }, [router]);
+
+  // Enregistrer le callback de session expirée
+  useEffect(() => {
+    onTokenExpired(handleAuthExpired);
+  }, [handleAuthExpired]);
+
   const refresh = useCallback(async () => {
     if (!getToken()) {
       setUser(null);
@@ -42,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const me = await api.get<AuthUser>('/auth/me');
       setUser(me);
     } catch {
-      setToken(null);
+      clearTokens();
       setUser(null);
     } finally {
       setLoading(false);
@@ -54,21 +68,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await api.post<AuthResponse>('/auth/login', { email, password }, false);
+    const res = await api.post<AuthResponse & { refreshToken?: string }>('/auth/login', { email, password }, false);
     setToken(res.accessToken);
+    if (res.refreshToken) setRefreshToken(res.refreshToken);
     setUser(res.user);
     return res.user;
   }, []);
 
   const register = useCallback(async (input: RegisterInput) => {
-    const res = await api.post<AuthResponse>('/auth/register', input, false);
+    const res = await api.post<AuthResponse & { refreshToken?: string }>('/auth/register', input, false);
     setToken(res.accessToken);
+    if (res.refreshToken) setRefreshToken(res.refreshToken);
     setUser(res.user);
     return res.user;
   }, []);
 
   const logout = useCallback(async () => {
-    setToken(null);
+    clearTokens();
     setUser(null);
     router.push('/login');
   }, [router]);

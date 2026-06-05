@@ -5,6 +5,7 @@ import type { IntroductionRequest } from '@plal/shared';
 import { services } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
 import { Avatar, EmptyState, Spinner } from '@/components/ui';
+import { CardSkeleton, ListSkeleton } from '@/components/skeleton';
 
 export default function DemandesPage() {
   return (
@@ -50,7 +51,7 @@ function Demandes() {
       </div>
 
       {loading ? (
-        <Spinner />
+        <ListSkeleton count={3} />
       ) : tab === 'received' ? (
         <ReceivedList items={received} onChanged={load} />
       ) : (

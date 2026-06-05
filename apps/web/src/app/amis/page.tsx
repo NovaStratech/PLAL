@@ -5,6 +5,9 @@ import type { Friendship } from '@plal/shared';
 import { services, type UserSearchResult } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
 import { Avatar, EmptyState, Spinner } from '@/components/ui';
+import { ListSkeleton } from '@/components/skeleton';
+import { useToast } from '@/components/toast';
+import { ApiError } from '@/lib/api';
 
 export default function AmisPage() {
   return (
@@ -19,6 +22,7 @@ function Amis() {
   const [incoming, setIncoming] = useState<Friendship[]>([]);
   const [outgoing, setOutgoing] = useState<Friendship[]>([]);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   async function load() {
     const [f, i, o] = await Promise.all([
@@ -36,16 +40,26 @@ function Amis() {
   }, []);
 
   async function respond(id: string, action: 'accept' | 'reject') {
-    await services.respondFriendRequest(id, action);
-    load();
+    try {
+      await services.respondFriendRequest(id, action);
+      toast(action === 'accept' ? 'Ami ajouté !' : 'Demande refusée.', 'success');
+      load();
+    } catch {
+      toast('Erreur lors de la réponse.', 'error');
+    }
   }
 
   async function remove(id: string) {
-    await services.removeFriend(id);
-    load();
+    try {
+      await services.removeFriend(id);
+      toast('Ami retiré.', 'info');
+      load();
+    } catch {
+      toast('Erreur lors du retrait.', 'error');
+    }
   }
 
-  if (loading) return <AppShellSpinner />;
+  if (loading) return <ListSkeleton count={4} />;
 
   return (
     <div className="space-y-7">
@@ -132,6 +146,7 @@ function AddFriends({ onChanged }: { onChanged: () => void }) {
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [searching, setSearching] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (query.trim().length < 2) {
@@ -150,9 +165,14 @@ function AddFriends({ onChanged }: { onChanged: () => void }) {
   }, [query]);
 
   async function add(userId: string) {
-    await services.sendFriendRequest(userId);
-    setSent((s) => new Set(s).add(userId));
-    onChanged();
+    try {
+      await services.sendFriendRequest(userId);
+      setSent((s) => new Set(s).add(userId));
+      toast('Demande d\'ami envoyée !', 'success');
+      onChanged();
+    } catch {
+      toast('Impossible d\'envoyer la demande.', 'error');
+    }
   }
 
   return (
@@ -196,9 +216,14 @@ function AddFriends({ onChanged }: { onChanged: () => void }) {
 }
 
 function InviteFriends() {
-  const [link, setLink] = useState('');
+  const [link, setLink] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [sentEmail, setSentEmail] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const toast = useToast();
 
   async function generate() {
     setLoading(true);
@@ -211,53 +236,111 @@ function InviteFriends() {
     }
   }
 
+  async function generateWithEmail() {
+    if (!email.trim()) return;
+    setEmailLoading(true);
+    setEmailError("");
+    try {
+      await services.createInvitation(email.trim());
+      setSentEmail(true);
+      setEmail("");
+      toast("Invitation envoyee !", "success");
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Envoi impossible.";
+      setEmailError(msg);
+      toast(msg, "error");
+    } finally {
+      setEmailLoading(false);
+    }
+  }
+
   async function share() {
     if (!link) return;
     const shareData = {
-      title: 'Rejoins-moi sur PLAL',
-      text: 'Rejoins mon réseau de confiance sur PLAL.',
+      title: "Rejoins-moi sur PLAL",
+      text: "Rejoins mon reseau de confiance sur PLAL.",
       url: link,
     };
-    if (typeof navigator !== 'undefined' && navigator.share) {
+    if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share(shareData);
         return;
       } catch {
-        // l'utilisateur a annulé le partage : on retombe sur la copie.
+        // fallback
       }
     }
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
       await navigator.clipboard.writeText(link);
       setCopied(true);
+      toast("Lien copie !", "success");
       setTimeout(() => setCopied(false), 2500);
     }
   }
 
   return (
-    <div className="card">
+    <div className="card space-y-4">
       <label className="label">Inviter un ami qui n&apos;est pas encore sur PLAL</label>
       <p className="text-sm text-ink/60">
-        Génère un lien personnel : ton ami devient automatiquement ton ami à son inscription.
+        Ton ami devient automatiquement ton ami a son inscription.
       </p>
+
+      {/* Invitation par email */}
+      {!sentEmail ? (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              className="input flex-1"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email de ton ami"
+            />
+            <button
+              onClick={generateWithEmail}
+              className="btn-primary whitespace-nowrap px-4 py-2 text-sm"
+              disabled={emailLoading || !email.trim()}
+            >
+              {emailLoading ? "Envoi..." : "Inviter"}
+            </button>
+          </div>
+          {emailError && <p className="text-sm text-red-600">{emailError}</p>}
+        </div>
+      ) : (
+        <div className="rounded-xl bg-trust-50 px-4 py-3 text-sm text-trust-700">
+          Invitation envoyee !
+        </div>
+      )}
+
+      {/* Separateur */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-sand" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-white px-3 text-xs text-ink/40">ou</span>
+        </div>
+      </div>
+
+      {/* Lien d'invitation */}
       {!link ? (
-        <button onClick={generate} disabled={loading} className="btn-secondary mt-3 px-4 py-2 text-sm">
-          {loading ? 'Génération…' : 'Générer un lien d’invitation'}
+        <button onClick={generate} disabled={loading} className="btn-secondary w-full px-4 py-2 text-sm">
+          {loading ? "Generation..." : "Generer un lien d'invitation"}
         </button>
       ) : (
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
             <input className="input flex-1" value={link} readOnly onFocus={(e) => e.target.select()} />
             <button onClick={share} className="btn-primary whitespace-nowrap px-3 py-2 text-xs">
-              {copied ? 'Copié !' : 'Partager'}
+              {copied ? "Copie !" : "Copier"}
             </button>
           </div>
           <button onClick={generate} disabled={loading} className="text-xs text-ink/40 hover:text-trust-700">
-            Générer un nouveau lien
+            Generer un nouveau lien
           </button>
         </div>
       )}
     </div>
-  );
+  )
 }
 
 function AppShellSpinner() {

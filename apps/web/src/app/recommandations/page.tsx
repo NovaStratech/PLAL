@@ -11,6 +11,8 @@ import { useAuth } from '@/lib/auth-context';
 import { services } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
 import { CategoryChip, EmptyState, Spinner } from '@/components/ui';
+import { ListSkeleton } from '@/components/skeleton';
+import { useToast } from '@/components/toast';
 import { ApiError } from '@/lib/api';
 
 export default function RecommandationsPage() {
@@ -26,6 +28,7 @@ function Recommandations() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Recommendation | null>(null);
+  const toast = useToast();
 
   async function load() {
     setRecos(await services.getMyRecommendations());
@@ -53,7 +56,7 @@ function Recommandations() {
           <p className="mt-1 text-ink/60">Les personnes de confiance que tu connais.</p>
         </div>
         <button onClick={openCreate} className="btn-primary">
-          {showForm && !editing ? 'Fermer' : '+ Déclarer'}
+          {showForm && !editing ? 'Fermer' : '+ Declarer'}
         </button>
       </div>
 
@@ -69,11 +72,11 @@ function Recommandations() {
       )}
 
       {loading ? (
-        <Spinner />
+        <ListSkeleton count={2} />
       ) : recos.length === 0 ? (
         <EmptyState
-          title="Tu n'as pas encore déclaré de recommandation."
-          hint="« Je connais quelqu'un de fiable dans ce domaine. » Commence ici."
+          title="Tu n'as pas encore declare de recommandation."
+          hint="Je connais quelqu'un de fiable dans ce domaine. Commence ici."
         />
       ) : (
         <div className="space-y-3">
@@ -99,11 +102,12 @@ function Recommandations() {
                     onClick={() => openEdit(r)}
                     className="text-sm text-ink/40 hover:text-trust-700"
                   >
-                    Éditer
+                    Editer
                   </button>
                   <button
                     onClick={async () => {
                       await services.deleteRecommendation(r.id);
+                      toast('Recommandation supprimee.', 'success');
                       load();
                     }}
                     className="text-sm text-ink/40 hover:text-red-600"
@@ -139,6 +143,7 @@ function RecoForm({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const toast = useToast();
 
   useEffect(() => {
     services.getCategories().then(setCategories);
@@ -158,6 +163,7 @@ function RecoForm({
           type,
           visibility,
         });
+        toast('Recommandation modifiee.', 'success');
       } else {
         await services.createRecommendation({
           categoryId,
@@ -167,10 +173,13 @@ function RecoForm({
           type,
           visibility,
         });
+        toast('Recommandation ajoutee !', 'success');
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Enregistrement impossible.');
+      const msg = err instanceof ApiError ? err.message : 'Enregistrement impossible.';
+      setError(msg);
+      toast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -181,12 +190,12 @@ function RecoForm({
       <p className="font-medium">
         {editing
           ? 'Modifier ta recommandation'
-          : 'Tu connais quelqu\u2019un de fiable dans quel domaine ?'}
+          : 'Tu connais quelqu&apos;un de fiable dans quel domaine ?'}
       </p>
       <div>
         <label className="label">Domaine</label>
         <select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
-          <option value="">Choisir…</option>
+          <option value="">Choisir...</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -195,22 +204,22 @@ function RecoForm({
         </select>
       </div>
       <div>
-        <label className="label">Tu connais…</label>
+        <label className="label">Tu connais...</label>
         <input
           className="input"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Ex. un bon ostéo"
+          placeholder="Ex. un bon osteo"
           required
         />
       </div>
       <div>
-        <label className="label">Précisions (facultatif)</label>
+        <label className="label">Precisions (facultatif)</label>
         <textarea
           className="input min-h-[70px] resize-none"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Pourquoi tu le recommandes…"
+          placeholder="Pourquoi tu le recommandes..."
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -247,10 +256,10 @@ function RecoForm({
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button type="submit" className="btn-primary w-full" disabled={loading}>
         {loading
-          ? 'Enregistrement…'
+          ? 'Enregistrement...'
           : editing
             ? 'Enregistrer les modifications'
-            : 'Déclarer la recommandation'}
+            : 'Declarer la recommandation'}
       </button>
     </form>
   );

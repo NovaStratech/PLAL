@@ -7,7 +7,9 @@ import type { Friendship, IntroductionRequest, Recommendation } from '@plal/shar
 import { useAuth } from '@/lib/auth-context';
 import { services } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
-import { EmptyState, Spinner } from '@/components/ui';
+import { EmptyState } from '@/components/ui';
+import { CardSkeleton, StatCardSkeleton, Skeleton } from '@/components/skeleton';
+import { useToast } from '@/components/toast';
 
 export default function DashboardPage() {
   return (
@@ -26,6 +28,7 @@ function Dashboard() {
   const [incoming, setIncoming] = useState<Friendship[]>([]);
   const [recos, setRecos] = useState<Recommendation[]>([]);
   const [received, setReceived] = useState<IntroductionRequest[]>([]);
+  const toast = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -48,7 +51,22 @@ function Dashboard() {
     if (query.trim()) router.push(`/rechercher?q=${encodeURIComponent(query.trim())}`);
   }
 
-  if (loading) return <Spinner />;
+  if (loading) {
+    return (
+      <div className="space-y-7">
+        <div>
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="mt-2 h-5 w-80" />
+        </div>
+        <Skeleton className="h-36 w-full rounded-2xl" />
+        <div className="grid grid-cols-2 gap-3">
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+        </div>
+        <CardSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-7">
