@@ -40,7 +40,7 @@ export class ProfilesService {
 
     const geo =
       profileData.city !== undefined
-        ? await this.geocoding.geocodeCity(profileData.city)
+        ? await this.geocoding.geocodeCity(profileData.city, profileData.country)
         : undefined;
 
     await this.prisma.user.update({
@@ -61,3 +61,4 @@ export class ProfilesService {
     return this.getMe(userId);
   }
 }
+

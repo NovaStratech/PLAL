@@ -40,6 +40,14 @@ async function main() {
   // --- Users + profiles ---
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
+  // Coordonnées GPS des villes du Québec pour les données de démonstration
+  const CITY_COORDS: Record<string, { latitude: number; longitude: number }> = {
+    'Montréal': { latitude: 45.5017, longitude: -73.5673 },
+    'Laval': { latitude: 45.5650, longitude: -73.7440 },
+    'Longueuil': { latitude: 45.5363, longitude: -73.5180 },
+    'Brossard': { latitude: 45.4563, longitude: -73.4660 },
+  };
+
   const usersData = [
     { email: 'alex@plal.test', firstName: 'Alex', lastName: 'Martin', city: 'Montréal', country: 'Canada' },
     { email: 'marc@plal.test', firstName: 'Marc', lastName: 'Tremblay', city: 'Montréal', country: 'Canada' },
@@ -55,6 +63,7 @@ async function main() {
 
   const users: Record<string, { id: string }> = {};
   for (const u of usersData) {
+    const coords = CITY_COORDS[u.city] ?? null;
     const user = await prisma.user.upsert({
       where: { email: u.email },
       update: {},
@@ -69,11 +78,21 @@ async function main() {
             lastName: u.lastName,
             city: u.city,
             country: u.country,
+            latitude: coords?.latitude ?? null,
+            longitude: coords?.longitude ?? null,
           },
         },
       },
     });
     users[u.firstName] = { id: user.id };
+
+    // Rattrapage des coordonnées GPS pour les profils existants
+    if (coords) {
+      await prisma.profile.updateMany({
+        where: { userId: user.id, latitude: null },
+        data: { latitude: coords.latitude, longitude: coords.longitude },
+      });
+    }
   }
 
   // --- Friendships (accepted) ---
@@ -176,6 +195,7 @@ async function main() {
 
   // Clean existing demo recos to keep seed idempotent-ish
   for (const r of recos) {
+    const coords = CITY_COORDS[r.city] ?? null;
     const existing = await prisma.recommendation.findFirst({
       where: { userId: users[r.owner].id, title: r.title },
     });
@@ -187,10 +207,20 @@ async function main() {
           title: r.title,
           description: r.description,
           city: r.city,
+          latitude: coords?.latitude ?? null,
+          longitude: coords?.longitude ?? null,
           type: r.type,
           visibility: r.visibility,
         },
       });
+    } else {
+      // Rattrapage des coordonnées GPS pour les recommandations existantes
+      if (coords && existing.latitude === null) {
+        await prisma.recommendation.update({
+          where: { id: existing.id },
+          data: { latitude: coords.latitude, longitude: coords.longitude },
+        });
+      }
     }
   }
 

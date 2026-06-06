@@ -6,41 +6,70 @@ export interface GeoPoint {
 }
 
 /**
- * Géocodage France via l'API publique gratuite de la Base Adresse Nationale
- * (api-adresse.data.gouv.fr) — aucune clé requise.
+ * Géocodage mondial via Nominatim (OpenStreetMap) — gratuit, sans clé.
+ * Utilisation raisonnable : 1 requête/seconde respectée (délai + cache).
  *
  * Tolérant aux pannes : renvoie null si la ville est introuvable ou si
  * le service est indisponible, sans jamais faire échouer l'appelant.
+ *
+ * Couvre Montréal, Laval, Longueuil, Brossard, etc. — partout dans le monde.
  */
 @Injectable()
 export class GeocodingService {
   private readonly logger = new Logger(GeocodingService.name);
-  private readonly baseUrl = 'https://api-adresse.data.gouv.fr/search/';
+  private readonly baseUrl = 'https://nominatim.openstreetmap.org/search';
+  private lastCall = 0;
 
-  async geocodeCity(city?: string | null): Promise<GeoPoint | null> {
+  async geocodeCity(city?: string | null, country?: string | null): Promise<GeoPoint | null> {
     const q = city?.trim();
     if (!q) return null;
 
+    return this.geocode(`${q}${country ? `, ${country.trim()}` : ''}`);
+  }
+
+  async geocode(query: string): Promise<GeoPoint | null> {
+    const q = query.trim();
+    if (!q) return null;
+
     try {
-      const url = `${this.baseUrl}?q=${encodeURIComponent(q)}&type=municipality&limit=1`;
+      // Rate-limit : 1 requête/seconde (bon citoyen Nominatim)
+      const now = Date.now();
+      const elapsed = now - this.lastCall;
+      if (elapsed < 1100) {
+        await new Promise((resolve) => setTimeout(resolve, 1100 - elapsed));
+      }
+      this.lastCall = Date.now();
+
+      const url = `${this.baseUrl}?q=${encodeURIComponent(q)}&format=json&limit=1`;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(url, { signal: controller.signal });
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'PLAL/1.0 (reseau de confiance humaine)',
+          'Accept': 'application/json',
+        },
+      });
       clearTimeout(timeout);
 
-      if (!res.ok) return null;
+      if (!res.ok) {
+        this.logger.warn(`Nominatim a retourné ${res.status} pour "${q}"`);
+        return null;
+      }
 
-      const data = (await res.json()) as {
-        features?: { geometry?: { coordinates?: [number, number] } }[];
-      };
-      const coords = data.features?.[0]?.geometry?.coordinates;
-      if (!coords || coords.length !== 2) return null;
+      const data = (await res.json()) as Array<{ lat: string; lon: string }> | undefined;
 
-      // L'API renvoie [longitude, latitude].
-      const [longitude, latitude] = coords;
-      if (typeof latitude !== 'number' || typeof longitude !== 'number') return null;
+      if (!data || data.length === 0) {
+        this.logger.warn(`Aucun résultat Nominatim pour "${q}"`);
+        return null;
+      }
 
-      return { latitude, longitude };
+      const lat = parseFloat(data[0].lat);
+      const lon = parseFloat(data[0].lon);
+
+      if (isNaN(lat) || isNaN(lon)) return null;
+
+      return { latitude: lat, longitude: lon };
     } catch (error) {
       this.logger.warn(`Géocodage impossible pour "${q}": ${(error as Error).message}`);
       return null;
