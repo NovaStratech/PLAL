@@ -5,13 +5,19 @@ export function Avatar({
   lastName,
   photoUrl,
   size = 44,
+  className = '',
+  onClick,
 }: {
   firstName: string;
   lastName?: string | null;
   photoUrl?: string | null;
   size?: number;
+  className?: string;
+  onClick?: () => void;
 }) {
   const initials = `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase();
+  const classes = `rounded-full object-cover shrink-0 ${onClick ? 'cursor-pointer' : ''} ${className}`;
+
   if (photoUrl) {
     // eslint-disable-next-line @next/next/no-img-element
     return (
@@ -20,18 +26,21 @@ export function Avatar({
         alt={firstName}
         width={size}
         height={size}
-        className="rounded-full object-cover"
+        className={classes}
         style={{ width: size, height: size }}
+        onClick={onClick}
       />
     );
   }
   return (
-    <div
-      className="flex shrink-0 items-center justify-center rounded-full bg-trust-100 font-semibold text-trust-700"
-      style={{ width: size, height: size, fontSize: size * 0.38 }}
+    <button
+      onClick={onClick}
+      className={`flex shrink-0 items-center justify-center rounded-full bg-trust-100 font-semibold text-trust-700 ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      style={{ width: size, height: size, fontSize: size * 0.38, minWidth: size }}
+      disabled={!onClick}
     >
       {initials || '?'}
-    </div>
+    </button>
   );
 }
 
@@ -67,5 +76,22 @@ export function Spinner() {
     <div className="flex justify-center py-10">
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-trust-200 border-t-trust-600" />
     </div>
+  );
+}
+
+export function CameraIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  );
+}
+
+export function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
   );
 }
