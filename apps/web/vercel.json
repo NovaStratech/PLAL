@@ -1,8 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install -g pnpm@9.15.9 && cd ../.. && pnpm install --no-frozen-lockfile --prod=false",
-  "buildCommand": "pnpm --filter shared build && pnpm --filter web build",
-  "env": {
-    "NEXT_PUBLIC_API_URL": "@next_public_api_url"
-  }
+  "buildCommand": "pnpm --filter shared build && pnpm --filter web build"
 }

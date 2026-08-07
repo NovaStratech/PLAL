@@ -1,5 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
-  "buildCommand": "pnpm --filter shared build && pnpm --filter api build && pnpm --filter web build"
-}
