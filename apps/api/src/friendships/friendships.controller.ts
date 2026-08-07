@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FriendshipsService } from './friendships.service';
@@ -12,6 +12,11 @@ export class FriendshipsController {
   @Get()
   listFriends(@CurrentUser('userId') userId: string) {
     return this.friendships.listFriends(userId);
+  }
+
+  @Get('suggestions')
+  suggestions(@CurrentUser('userId') userId: string) {
+    return this.friendships.suggestFriends(userId);
   }
 
   @Get('requests/incoming')
@@ -41,5 +46,20 @@ export class FriendshipsController {
   @Delete(':id')
   remove(@CurrentUser('userId') userId: string, @Param('id') id: string) {
     return this.friendships.remove(userId, id);
+  }
+
+  @Post('block')
+  block(@CurrentUser('userId') userId: string, @Query('friendUserId') friendUserId: string) {
+    return this.friendships.block(userId, friendUserId);
+  }
+
+  @Post('unblock')
+  unblock(@CurrentUser('userId') userId: string, @Query('friendUserId') friendUserId: string) {
+    return this.friendships.unblock(userId, friendUserId);
+  }
+
+  @Get('blocked')
+  listBlocked(@CurrentUser('userId') userId: string) {
+    return this.friendships.listBlocked(userId);
   }
 }

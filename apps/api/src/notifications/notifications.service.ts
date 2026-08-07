@@ -1,10 +1,17 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { NotificationType } from '@prisma/client';
 import type { NotificationItem } from '@plal/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async unreadCount(userId: string): Promise<number> {
+    return this.prisma.notification.count({
+      where: { userId, read: false },
+    });
+  }
 
   async list(userId: string): Promise<NotificationItem[]> {
     const notifications = await this.prisma.notification.findMany({
@@ -34,6 +41,35 @@ export class NotificationsService {
       where: { userId, read: false },
       data: { read: true },
     });
+    return { success: true };
+  }
+
+  /**
+   * Marque comme lues les notifications correspondant à un type et un payload.
+   * Utilisé pour invalider automatiquement une notification lorsque l'action
+   * associée a été traitée (ex: demande d'ami acceptée, mise en relation répondue).
+   */
+  async markReadByPayload(
+    userId: string,
+    type: NotificationType,
+    payloadMatch: Record<string, unknown>,
+  ): Promise<{ success: true }> {
+    const notifications = await this.prisma.notification.findMany({
+      where: { userId, type, read: false },
+    });
+
+    const idsToMark = notifications.filter((n) => {
+      const payload = (n.payload as Record<string, unknown>) ?? {};
+      return Object.entries(payloadMatch).every(([key, value]) => payload[key] === value);
+    });
+
+    if (idsToMark.length > 0) {
+      await this.prisma.notification.updateMany({
+        where: { id: { in: idsToMark.map((n) => n.id) } },
+        data: { read: true },
+      });
+    }
+
     return { success: true };
   }
 }

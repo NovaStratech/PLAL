@@ -3,9 +3,9 @@ import { jwtVerify } from 'jose';
 
 const f = createUploadthing();
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.UPLOADTHING_SECRET ?? 'fallback-dev-only',
-);
+// Le JWT est signé par l'API NestJS avec JWT_SECRET. UploadThing doit utiliser
+// le même secret pour valider le token transmis par le client.
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? 'dev-secret');
 
 /**
  * Upload de photo de profil.

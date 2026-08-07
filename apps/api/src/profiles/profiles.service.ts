@@ -30,6 +30,7 @@ export class ProfilesService {
             country: user.profile.country,
             photoUrl: user.profile.photoUrl,
             bio: user.profile.bio,
+            phoneNumber: user.profile.phoneNumber,
           }
         : null,
     };

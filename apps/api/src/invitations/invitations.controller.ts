@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InvitationsService } from './invitations.service';
@@ -20,6 +21,7 @@ export class InvitationsController {
     return this.invitations.listMine(userId);
   }
 
+  @Throttle({ invitations: { limit: 20, ttl: 60000 } })
   @UseGuards(JwtAuthGuard)
   @Post()
   create(@CurrentUser('userId') userId: string, @Body() dto: CreateInvitationDto) {

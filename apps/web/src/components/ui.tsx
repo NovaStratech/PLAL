@@ -33,14 +33,15 @@ export function Avatar({
     );
   }
   return (
-    <button
-      onClick={onClick}
+    <span
       className={`flex shrink-0 items-center justify-center rounded-full bg-trust-100 font-semibold text-trust-700 ${onClick ? 'cursor-pointer' : ''} ${className}`}
       style={{ width: size, height: size, fontSize: size * 0.38, minWidth: size }}
-      disabled={!onClick}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
     >
       {initials || '?'}
-    </button>
+    </span>
   );
 }
 

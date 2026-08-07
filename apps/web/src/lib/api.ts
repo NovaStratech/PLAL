@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 const TOKEN_KEY = 'plal_token';
 const REFRESH_TOKEN_KEY = 'plal_refresh_token';
 

@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { services } from '@/lib/services';
+import { useLongPress } from '@/lib/use-long-press';
 import { Avatar, Spinner } from './ui';
+import { VersionBadge } from './version-badge';
 
 const NAV = [
   { href: '/dashboard', label: 'Accueil', icon: HomeIcon },
@@ -38,19 +40,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Top bar */}
       <header className="sticky top-0 z-20 border-b border-sand bg-cream/80 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-3.5">
-          <Link href="/dashboard" className="text-lg font-bold text-trust-700">
-            PLAL
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard" className="text-lg font-bold text-trust-700">
+              PLAL
+            </Link>
+            <VersionBadge />
+          </div>
           <div className="flex items-center gap-3">
             <NotificationBell />
-            <Link href="/profil" aria-label="Profil">
-              <Avatar
-                firstName={user.profile?.firstName ?? '?'}
-                lastName={user.profile?.lastName}
-                photoUrl={user.profile?.photoUrl}
-                size={36}
-              />
-            </Link>
+            <ProfileAvatar
+              firstName={user.profile?.firstName ?? '?'}
+              lastName={user.profile?.lastName}
+              photoUrl={user.profile?.photoUrl}
+            />
           </div>
         </div>
 
@@ -113,6 +115,54 @@ function NavLink({
   );
 }
 
+function ProfileAvatar({
+  firstName,
+  lastName,
+  photoUrl,
+}: {
+  firstName: string;
+  lastName?: string | null;
+  photoUrl?: string | null;
+}) {
+  const router = useRouter();
+  const [showMenu, setShowMenu] = useState(false);
+
+  const { handlers } = useLongPress({
+    threshold: 500,
+    onLongPress: () => setShowMenu(true),
+    onClick: () => router.push('/profil'),
+  });
+
+  return (
+    <div className="relative">
+      <button
+        {...handlers}
+        aria-label="Profil"
+        className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-trust-500"
+      >
+        <Avatar firstName={firstName} lastName={lastName} photoUrl={photoUrl} size={36} />
+      </button>
+
+      {showMenu && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
+          <div className="absolute right-0 top-full z-40 mt-2 w-40 rounded-2xl border border-sand bg-white p-1.5 shadow-lg">
+            <button
+              onClick={() => {
+                setShowMenu(false);
+                router.push('/profil');
+              }}
+              className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-ink/80 hover:bg-sand"
+            >
+              Ouvrir
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SearchIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -128,15 +178,32 @@ function NotificationBell() {
   useEffect(() => {
     let active = true;
     services
-      .getNotifications()
-      .then((items) => {
-        if (active) setUnread(items.filter((n) => !n.read).length);
+      .getUnreadNotificationCount()
+      .then(({ count }) => {
+        if (active) setUnread(count);
       })
       .catch(() => {
         /* silencieux : la cloche ne doit pas casser la nav */
       });
+
+    let source: EventSource | null = null;
+    try {
+      source = services.streamNotifications();
+      source.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as { count: number };
+          setUnread(data.count);
+        } catch {
+          /* ignorer */
+        }
+      };
+    } catch {
+      /* SSE non supporté ou erreur réseau */
+    }
+
     return () => {
       active = false;
+      source?.close();
     };
   }, [pathname]);
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { ApiError } from '@/lib/api';
+import { VersionBadge } from '@/components/version-badge';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -31,9 +32,12 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-cream px-5 py-10">
       <div className="w-full max-w-sm">
-        <Link href="/" className="mb-8 block text-center text-2xl font-bold text-trust-700">
-          PLAL
-        </Link>
+        <div className="mb-8 flex items-center justify-center gap-2">
+          <Link href="/" className="text-2xl font-bold text-trust-700">
+            PLAL
+          </Link>
+          <VersionBadge />
+        </div>
         <div className="card">
           <h1 className="text-xl font-semibold">Content de te revoir</h1>
           <p className="mt-1 text-sm text-ink/60">Connecte-toi pour retrouver ton réseau.</p>
@@ -74,6 +78,12 @@ export default function LoginPage() {
               {loading ? 'Connexion…' : 'Se connecter'}
             </button>
           </form>
+
+          <div className="mt-4 text-center">
+            <Link href="/forgot-password" className="text-sm font-medium text-trust-700 hover:underline">
+              Mot de passe oublié ?
+            </Link>
+          </div>
         </div>
 
         <p className="mt-6 text-center text-sm text-ink/60">

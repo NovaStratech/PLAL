@@ -10,7 +10,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { services } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
-import { CategoryChip, EmptyState, Spinner } from '@/components/ui';
+import { CategoryChip, EmptyState } from '@/components/ui';
 import { ListSkeleton } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
 import { ApiError } from '@/lib/api';
@@ -124,6 +124,13 @@ function Recommandations() {
   );
 }
 
+function flattenCategories(categories: Category[], prefix = ''): Array<Category & { prefix: string }> {
+  return categories.flatMap((c) => [
+    { ...c, prefix },
+    ...(c.children ? flattenCategories(c.children, `${prefix}— `) : []),
+  ]);
+}
+
 function RecoForm({
   editing,
   onSaved,
@@ -196,9 +203,9 @@ function RecoForm({
         <label className="label">Domaine</label>
         <select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
           <option value="">Choisir...</option>
-          {categories.map((c) => (
+          {flattenCategories(categories).map((c) => (
             <option key={c.id} value={c.id}>
-              {c.name}
+              {c.prefix}{c.name}
             </option>
           ))}
         </select>

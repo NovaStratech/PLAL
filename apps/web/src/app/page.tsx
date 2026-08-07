@@ -1,13 +1,17 @@
 import Link from 'next/link';
+import { VersionBadge } from '@/components/version-badge';
 
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-cream">
       {/* Nav */}
       <header className="mx-auto flex max-w-5xl items-center justify-between px-5 py-5">
-        <Link href="/" className="text-xl font-bold tracking-tight text-trust-700">
-          PLAL
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/" className="text-xl font-bold tracking-tight text-trust-700">
+            PLAL
+          </Link>
+          <VersionBadge />
+        </div>
         <nav className="flex items-center gap-2">
           <Link href="/login" className="btn-ghost">
             Se connecter

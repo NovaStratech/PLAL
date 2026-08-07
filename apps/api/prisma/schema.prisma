@@ -38,6 +38,18 @@ enum IntroductionRequestStatus {
   declined
 }
 
+enum IntroductionStepStatus {
+  pending
+  accepted
+  declined
+}
+
+enum IntroductionResponseType {
+  phone
+  email
+  social
+}
+
 enum InvitationStatus {
   pending
   accepted
@@ -54,13 +66,22 @@ enum NotificationType {
 }
 
 model User {
-  id                   String   @id @default(cuid())
-  email                String   @unique
-  passwordHash         String
-  emailVerified        Boolean  @default(false)
-  onboardingCompleted  Boolean  @default(false)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  email                  String   @unique
+  passwordHash           String
+  emailVerified          Boolean  @default(false)
+  onboardingCompleted    Boolean  @default(false)
+
+  // Réinitialisation de mot de passe
+  passwordResetToken     String?  @unique
+  passwordResetExpiresAt DateTime?
+
+  // Changement d'email
+  emailChangeToken       String?  @unique
+  emailChangePending     String?
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   profile              Profile?
 
@@ -70,28 +91,30 @@ model User {
   recommendations      Recommendation[]
 
   sentIntroductions     IntroductionRequest[] @relation("IntroRequester")
-  receivedIntroductions IntroductionRequest[] @relation("IntroRecommender")
+  introductionSteps     IntroductionStep[]
 
   sentInvitations      Invitation[] @relation("InvitationInviter")
   acceptedInvitations  Invitation[] @relation("InvitationAcceptedBy")
 
   notifications        Notification[]
+  categorySuggestions  CategorySuggestion[]
 }
 
 model Profile {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  firstName String
-  lastName  String?
-  city      String?
-  country   String?
-  latitude  Float?
-  longitude Float?
-  photoUrl  String?
-  bio       String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String?
+  city        String?
+  country     String?
+  latitude    Float?
+  longitude   Float?
+  photoUrl    String?
+  bio         String?
+  phoneNumber String?  // Non visible publiquement, utilisé pour retrouver/inviter des amis
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Friendship {
@@ -101,19 +124,42 @@ model Friendship {
   requester   User             @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   receiver    User             @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
   status      FriendshipStatus @default(pending)
+  blockedById String?
+  blockedAt   DateTime?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
   @@unique([requesterId, receiverId])
   @@index([receiverId])
   @@index([status])
+  @@index([blockedById])
 }
 
 model Category {
   id              String           @id @default(cuid())
   slug            String           @unique
   name            String
+  parentId        String?
+  parent          Category?        @relation("CategoryChildren", fields: [parentId], references: [id])
+  children        Category[]       @relation("CategoryChildren")
   recommendations Recommendation[]
+
+  @@index([parentId])
+}
+
+model CategorySuggestion {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      String   @default("pending")
+  adminNote   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 model Recommendation {
@@ -139,21 +185,43 @@ model Recommendation {
 }
 
 model IntroductionRequest {
-  id               String                    @id @default(cuid())
-  requesterId      String
-  recommenderId    String
+  id              String                    @id @default(cuid())
+  requesterId     String
+  requester       User                      @relation("IntroRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   recommendationId String
-  requester        User                      @relation("IntroRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  recommender      User                      @relation("IntroRecommender", fields: [recommenderId], references: [id], onDelete: Cascade)
-  recommendation   Recommendation            @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
-  message          String
-  responseMessage  String?
-  status           IntroductionRequestStatus @default(pending)
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
+  recommendation  Recommendation            @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  message         String
+  status          IntroductionRequestStatus @default(pending)
+  responseType    IntroductionResponseType?
+  responseValue   String?
+  responseMessage String?
+  currentStepId   String?                   @unique
+  currentStep     IntroductionStep?         @relation("CurrentStep", fields: [currentStepId], references: [id])
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  steps IntroductionStep[] @relation("RequestSteps")
 
   @@index([requesterId])
-  @@index([recommenderId])
+  @@index([recommendationId])
+}
+
+model IntroductionStep {
+  id                   String                @id @default(cuid())
+  introductionRequestId String
+  introductionRequest  IntroductionRequest   @relation("RequestSteps", fields: [introductionRequestId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status               IntroductionStepStatus @default(pending)
+  order                Int
+  responseMessage      String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  currentForRequest IntroductionRequest? @relation("CurrentStep")
+
+  @@index([introductionRequestId])
+  @@index([userId])
 }
 
 model Notification {

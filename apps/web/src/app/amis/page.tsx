@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { Friendship } from '@plal/shared';
 import { services, type UserSearchResult } from '@/lib/services';
+export type { UserSearchResult };
 import { AppShell } from '@/components/app-shell';
-import { Avatar, EmptyState, Spinner } from '@/components/ui';
+import { Avatar, EmptyState } from '@/components/ui';
 import { ListSkeleton } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
 import { ApiError } from '@/lib/api';
@@ -21,18 +23,24 @@ function Amis() {
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [incoming, setIncoming] = useState<Friendship[]>([]);
   const [outgoing, setOutgoing] = useState<Friendship[]>([]);
+  const [blocked, setBlocked] = useState<Friendship[]>([]);
+  const [suggestions, setSuggestions] = useState<UserSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
   async function load() {
-    const [f, i, o] = await Promise.all([
+    const [f, i, o, b, s] = await Promise.all([
       services.getFriends(),
       services.getIncomingRequests(),
       services.getOutgoingRequests(),
+      services.getBlockedFriends(),
+      services.getFriendSuggestions(),
     ]);
     setFriends(f);
     setIncoming(i);
     setOutgoing(o);
+    setBlocked(b);
+    setSuggestions(s);
   }
 
   useEffect(() => {
@@ -49,13 +57,23 @@ function Amis() {
     }
   }
 
-  async function remove(id: string) {
+  async function block(friendUserId: string) {
     try {
-      await services.removeFriend(id);
-      toast('Ami retiré.', 'info');
+      await services.blockFriend(friendUserId);
+      toast('Ami bloqué.', 'info');
       load();
     } catch {
-      toast('Erreur lors du retrait.', 'error');
+      toast('Erreur lors du blocage.', 'error');
+    }
+  }
+
+  async function unblock(friendUserId: string) {
+    try {
+      await services.unblockFriend(friendUserId);
+      toast('Ami débloqué.', 'success');
+      load();
+    } catch {
+      toast('Erreur lors du déblocage.', 'error');
     }
   }
 
@@ -72,17 +90,46 @@ function Amis() {
 
       <InviteFriends />
 
+      {suggestions.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-semibold">Suggestions d&apos;amis ({suggestions.length})</h2>
+          <p className="mb-2 text-sm text-ink/60">Des gens que tu pourrais connaître via ton réseau.</p>
+          <div className="space-y-2">
+            {suggestions.map((s) => (
+              <div key={s.userId} className="flex items-center gap-3 rounded-xl border border-sand bg-white p-3">
+                <Link href={`/utilisateur/${s.userId}`}>
+                  <Avatar firstName={s.firstName} lastName={s.lastName} photoUrl={s.photoUrl} size={40} />
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link href={`/utilisateur/${s.userId}`} className="truncate font-medium hover:text-trust-700">
+                    {s.firstName} {s.lastName ?? ''}
+                  </Link>
+                  {s.mutualFriends ? (
+                    <p className="text-xs text-ink/50">{s.mutualFriends} ami{s.mutualFriends > 1 ? 's' : ''} en commun</p>
+                  ) : s.city ? (
+                    <p className="text-xs text-ink/50">{s.city}</p>
+                  ) : null}
+                </div>
+                <AddFriendButton userId={s.userId} onChanged={load} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {incoming.length > 0 && (
         <section>
           <h2 className="mb-2 font-semibold">Demandes reçues ({incoming.length})</h2>
           <div className="space-y-2">
             {incoming.map((f) => (
               <div key={f.id} className="flex items-center gap-3 rounded-xl border border-sand bg-white p-3">
-                <Avatar firstName={f.friend.firstName} lastName={f.friend.lastName} photoUrl={f.friend.photoUrl} size={40} />
+                <Link href={`/utilisateur/${f.friend.userId}`}>
+                  <Avatar firstName={f.friend.firstName} lastName={f.friend.lastName} photoUrl={f.friend.photoUrl} size={40} />
+                </Link>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
+                  <Link href={`/utilisateur/${f.friend.userId}`} className="truncate font-medium hover:text-trust-700">
                     {f.friend.firstName} {f.friend.lastName ?? ''}
-                  </p>
+                  </Link>
                   {f.friend.city && <p className="text-xs text-ink/50">{f.friend.city}</p>}
                 </div>
                 <button onClick={() => respond(f.id, 'accept')} className="btn-primary px-3 py-1.5 text-xs">
@@ -105,15 +152,17 @@ function Amis() {
           <div className="space-y-2">
             {friends.map((f) => (
               <div key={f.id} className="flex items-center gap-3 rounded-xl border border-sand bg-white p-3">
-                <Avatar firstName={f.friend.firstName} lastName={f.friend.lastName} photoUrl={f.friend.photoUrl} size={40} />
+                <Link href={`/utilisateur/${f.friend.userId}`}>
+                  <Avatar firstName={f.friend.firstName} lastName={f.friend.lastName} photoUrl={f.friend.photoUrl} size={40} />
+                </Link>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
+                  <Link href={`/utilisateur/${f.friend.userId}`} className="truncate font-medium hover:text-trust-700">
                     {f.friend.firstName} {f.friend.lastName ?? ''}
-                  </p>
+                  </Link>
                   {f.friend.city && <p className="text-xs text-ink/50">{f.friend.city}</p>}
                 </div>
-                <button onClick={() => remove(f.id)} className="text-sm text-ink/40 hover:text-red-600">
-                  Retirer
+                <button onClick={() => block(f.friend.userId)} className="text-sm text-ink/40 hover:text-red-600">
+                  Bloquer
                 </button>
               </div>
             ))}
@@ -121,16 +170,39 @@ function Amis() {
         )}
       </section>
 
+      {blocked.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-semibold">Bloqués ({blocked.length})</h2>
+          <div className="space-y-2">
+            {blocked.map((f) => (
+              <div key={f.id} className="flex items-center gap-3 rounded-xl border border-sand bg-white p-3 opacity-60">
+                <Link href={`/utilisateur/${f.friend.userId}`}>
+                  <Avatar firstName={f.friend.firstName} lastName={f.friend.lastName} photoUrl={f.friend.photoUrl} size={40} />
+                </Link>
+                <Link href={`/utilisateur/${f.friend.userId}`} className="flex-1 truncate font-medium hover:text-trust-700">
+                  {f.friend.firstName} {f.friend.lastName ?? ''}
+                </Link>
+                <button onClick={() => unblock(f.friend.userId)} className="text-sm text-ink/60 hover:text-trust-700">
+                  Débloquer
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {outgoing.length > 0 && (
         <section>
           <h2 className="mb-2 font-semibold">Demandes envoyées ({outgoing.length})</h2>
           <div className="space-y-2">
             {outgoing.map((f) => (
               <div key={f.id} className="flex items-center gap-3 rounded-xl border border-sand bg-white p-3 opacity-70">
-                <Avatar firstName={f.friend.firstName} lastName={f.friend.lastName} photoUrl={f.friend.photoUrl} size={40} />
-                <p className="flex-1 truncate font-medium">
+                <Link href={`/utilisateur/${f.friend.userId}`}>
+                  <Avatar firstName={f.friend.firstName} lastName={f.friend.lastName} photoUrl={f.friend.photoUrl} size={40} />
+                </Link>
+                <Link href={`/utilisateur/${f.friend.userId}`} className="flex-1 truncate font-medium hover:text-trust-700">
                   {f.friend.firstName} {f.friend.lastName ?? ''}
-                </p>
+                </Link>
                 <span className="chip bg-sand text-ink/50">En attente</span>
               </div>
             ))}
@@ -138,6 +210,36 @@ function Amis() {
         </section>
       )}
     </div>
+  );
+}
+
+function AddFriendButton({ userId, onChanged }: { userId: string; onChanged: () => void }) {
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+
+  async function add() {
+    setLoading(true);
+    try {
+      await services.sendFriendRequest(userId);
+      setSent(true);
+      toast('Demande d\'ami envoyée !', 'success');
+      onChanged();
+    } catch {
+      toast('Impossible d\'envoyer la demande.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (sent) {
+    return <span className="chip bg-sand text-ink/50">Envoyé</span>;
+  }
+
+  return (
+    <button onClick={add} disabled={loading} className="btn-secondary px-3 py-1.5 text-xs">
+      {loading ? 'Envoi…' : 'Ajouter'}
+    </button>
   );
 }
 
@@ -189,11 +291,13 @@ function AddFriends({ onChanged }: { onChanged: () => void }) {
         <div className="mt-3 space-y-2">
           {results.map((r) => (
             <div key={r.userId} className="flex items-center gap-3">
-              <Avatar firstName={r.firstName} lastName={r.lastName} photoUrl={r.photoUrl} size={36} />
+              <Link href={`/utilisateur/${r.userId}`}>
+                <Avatar firstName={r.firstName} lastName={r.lastName} photoUrl={r.photoUrl} size={36} />
+              </Link>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">
+                <Link href={`/utilisateur/${r.userId}`} className="truncate font-medium hover:text-trust-700">
                   {r.firstName} {r.lastName ?? ''}
-                </p>
+                </Link>
                 {r.city && <p className="text-xs text-ink/50">{r.city}</p>}
               </div>
               {r.relation === 'self' ? (
@@ -343,6 +447,4 @@ function InviteFriends() {
   )
 }
 
-function AppShellSpinner() {
-  return <Spinner />;
-}
+

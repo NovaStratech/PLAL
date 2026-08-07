@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { NotificationType, type NotificationItem } from '@plal/shared';
 import { services } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
-import { EmptyState, Spinner } from '@/components/ui';
+import { EmptyState } from '@/components/ui';
 import { CardSkeleton } from '@/components/skeleton';
 
 export default function NotificationsPage() {

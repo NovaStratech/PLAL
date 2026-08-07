@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { services } from '@/lib/services';
@@ -29,6 +29,20 @@ function Profil() {
   const [country, setCountry] = useState(user?.profile?.country ?? '');
   const [photoUrl, setPhotoUrl] = useState(user?.profile?.photoUrl ?? '');
   const [bio, setBio] = useState(user?.profile?.bio ?? '');
+  const [phoneNumber, setPhoneNumber] = useState(user?.profile?.phoneNumber ?? '');
+
+  // Synchroniser les champs quand l'utilisateur est chargé ou rafraîchi
+  useEffect(() => {
+    if (!user?.profile) return;
+    setFirstName(user.profile.firstName ?? '');
+    setLastName(user.profile.lastName ?? '');
+    setCity(user.profile.city ?? '');
+    setCountry(user.profile.country ?? '');
+    setPhotoUrl(user.profile.photoUrl ?? '');
+    setBio(user.profile.bio ?? '');
+    setPhoneNumber(user.profile.phoneNumber ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.profile?.id, user?.email]);
 
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -56,6 +70,7 @@ function Profil() {
         country: country || null,
         photoUrl: photoUrl || null,
         bio: bio || null,
+        phoneNumber: phoneNumber || null,
       });
       setUser(updated);
       setPreviewUrl(null);
@@ -191,6 +206,9 @@ function Profil() {
             {firstName} {lastName}
           </p>
           <p className="text-sm text-ink/50">{user?.email}</p>
+          {bio && (
+            <p className="mt-1 line-clamp-2 text-sm text-ink/70">{bio}</p>
+          )}
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             <UploadButton
@@ -293,6 +311,21 @@ function Profil() {
             placeholder="Quelques mots sur toi… les gens que tu connais, ce qui te passionne."
             maxLength={charLimit}
           />
+        </div>
+
+        <div>
+          <label className="label" htmlFor="phoneNumber">Téléphone (facultatif)</label>
+          <input
+            id="phoneNumber"
+            type="tel"
+            className="input"
+            value={phoneNumber}
+            onChange={(e) => { setPhoneNumber(e.target.value); handleFieldChange(); }}
+            placeholder="Permet à certains amis de te retrouver"
+          />
+          <p className="mt-1 text-xs text-ink/40">
+            Ce numéro reste invisible pour les autres utilisateurs.
+          </p>
         </div>
 
         {error && (

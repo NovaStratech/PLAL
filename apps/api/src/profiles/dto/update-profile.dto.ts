@@ -32,6 +32,11 @@ export class UpdateProfileDto {
   bio?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  phoneNumber?: string;
+
+  @IsOptional()
   @IsBoolean()
   onboardingCompleted?: boolean;
 }

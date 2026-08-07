@@ -9,7 +9,7 @@ import { services } from '@/lib/services';
 import { AppShell } from '@/components/app-shell';
 import { EmptyState } from '@/components/ui';
 import { CardSkeleton, StatCardSkeleton, Skeleton } from '@/components/skeleton';
-import { useToast } from '@/components/toast';
+
 
 export default function DashboardPage() {
   return (
@@ -28,7 +28,8 @@ function Dashboard() {
   const [incoming, setIncoming] = useState<Friendship[]>([]);
   const [recos, setRecos] = useState<Recommendation[]>([]);
   const [received, setReceived] = useState<IntroductionRequest[]>([]);
-  const toast = useToast();
+  const [pendingSent, setPendingSent] = useState<IntroductionRequest[]>([]);
+  const [suggestions, setSuggestions] = useState<Array<{ userId: string; firstName: string; lastName: string | null; photoUrl: string | null; mutualFriends?: number }>>([]);
 
   useEffect(() => {
     Promise.all([
@@ -36,12 +37,16 @@ function Dashboard() {
       services.getIncomingRequests(),
       services.getMyRecommendations(),
       services.getReceivedIntroductions(),
+      services.getSentIntroductions(),
+      services.getFriendSuggestions(),
     ])
-      .then(([f, i, r, rec]) => {
+      .then(([f, i, r, rec, sent, sug]) => {
         setFriends(f);
         setIncoming(i);
         setRecos(r);
         setReceived(rec.filter((x) => x.status === 'pending'));
+        setPendingSent(sent.filter((x) => x.status === 'pending'));
+        setSuggestions(sug.slice(0, 3));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -100,7 +105,7 @@ function Dashboard() {
 
       {/* Demandes reçues */}
       {received.length > 0 && (
-        <Section title={`Demandes de mise en relation (${received.length})`} href="/demandes">
+        <Section title={`Demandes à traiter (${received.length})`} href="/demandes">
           {received.slice(0, 3).map((r) => (
             <Link
               key={r.id}
@@ -116,6 +121,24 @@ function Dashboard() {
         </Section>
       )}
 
+      {/* Demandes envoyées en attente */}
+      {pendingSent.length > 0 && (
+        <Section title={`Demandes envoyées en attente (${pendingSent.length})`} href="/demandes">
+          {pendingSent.slice(0, 3).map((r) => (
+            <Link
+              key={r.id}
+              href="/demandes"
+              className="flex items-center justify-between rounded-xl border border-sand bg-white p-3"
+            >
+              <span className="text-sm">
+                <strong>{r.recommendation.title}</strong> — en attente de {r.currentStep?.user.firstName ?? r.recommendation.helper.firstName}
+              </span>
+              <span className="chip bg-sand text-ink/50">En cours</span>
+            </Link>
+          ))}
+        </Section>
+      )}
+
       {/* Demandes d'amis */}
       {incoming.length > 0 && (
         <Section title={`Demandes d'amis (${incoming.length})`} href="/amis">
@@ -124,6 +147,32 @@ function Dashboard() {
               <strong>{f.friend.firstName}</strong> souhaite t&apos;ajouter
             </Link>
           ))}
+        </Section>
+      )}
+
+      {/* Suggestions d'amis */}
+      {suggestions.length > 0 && (
+        <Section title="Tu pourrais connaître" href="/amis">
+          <div className="space-y-2">
+            {suggestions.map((s) => (
+              <Link
+                key={s.userId}
+                href={`/utilisateur/${s.userId}`}
+                className="flex items-center gap-3 rounded-xl border border-sand bg-white p-3"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-trust-100 font-semibold text-trust-700 text-sm">
+                  {s.firstName[0]}{s.lastName?.[0] ?? ''}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{s.firstName} {s.lastName ?? ''}</p>
+                  {s.mutualFriends ? (
+                    <p className="text-xs text-ink/50">{s.mutualFriends} ami{s.mutualFriends > 1 ? 's' : ''} en commun</p>
+                  ) : null}
+                </div>
+                <span className="text-sm text-trust-700">Voir →</span>
+              </Link>
+            ))}
+          </div>
         </Section>
       )}
 

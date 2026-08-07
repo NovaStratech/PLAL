@@ -43,3 +43,41 @@ export class LoginDto {
   @MinLength(1)
   password!: string;
 }
+
+export class ForgotPasswordDto {
+  @IsEmail()
+  email!: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @MinLength(1)
+  token!: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères.' })
+  @MaxLength(72)
+  password!: string;
+}
+
+export class ChangePasswordDto {
+  @IsString()
+  @MinLength(1)
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Le nouveau mot de passe doit contenir au moins 8 caractères.' })
+  @MaxLength(72)
+  newPassword!: string;
+}
+
+export class RequestEmailChangeDto {
+  @IsEmail()
+  newEmail!: string;
+}
+
+export class ConfirmEmailChangeDto {
+  @IsString()
+  @MinLength(1)
+  token!: string;
+}

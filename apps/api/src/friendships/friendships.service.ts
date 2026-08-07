@@ -7,7 +7,22 @@ import {
 import { FriendshipStatus, NotificationType, Prisma } from '@prisma/client';
 import type { Friendship as FriendshipDTO, PublicProfile } from '@plal/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateFriendshipDto, RespondFriendshipDto } from './dto/friendship.dto';
+
+export interface FriendSuggestion {
+  userId: string;
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  city: string | null;
+  country: string | null;
+  photoUrl: string | null;
+  bio: string | null;
+  phoneNumber: string | null;
+  relation: 'none';
+  mutualFriends: number;
+}
 
 type FriendshipWithUsers = Prisma.FriendshipGetPayload<{
   include: {
@@ -18,7 +33,10 @@ type FriendshipWithUsers = Prisma.FriendshipGetPayload<{
 
 @Injectable()
 export class FriendshipsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async request(userId: string, dto: CreateFriendshipDto): Promise<FriendshipDTO> {
     if (dto.receiverId === userId) {
@@ -85,6 +103,10 @@ export class FriendshipsService {
 
     if (status === FriendshipStatus.accepted) {
       await this.notify(friendship.requesterId, NotificationType.friend_request_accepted, userId);
+      // Invalider la notification de demande d'ami reçue par l'accepteur.
+      await this.notifications.markReadByPayload(userId, NotificationType.friend_request, {
+        fromUserId: friendship.requesterId,
+      });
     }
 
     return this.toDto(updated, userId);
@@ -100,11 +122,122 @@ export class FriendshipsService {
     return { success: true };
   }
 
+  async block(userId: string, friendUserId: string): Promise<{ success: true }> {
+    const friendship = await this.prisma.friendship.findFirst({
+      where: {
+        status: FriendshipStatus.accepted,
+        OR: [
+          { requesterId: userId, receiverId: friendUserId },
+          { requesterId: friendUserId, receiverId: userId },
+        ],
+      },
+    });
+    if (!friendship) throw new BadRequestException('Vous devez être amis pour bloquer.');
+
+    await this.prisma.friendship.update({
+      where: { id: friendship.id },
+      data: {
+        status: FriendshipStatus.rejected,
+        blockedById: userId,
+        blockedAt: new Date(),
+      },
+    });
+    return { success: true };
+  }
+
+  async unblock(userId: string, friendUserId: string): Promise<{ success: true }> {
+    const friendship = await this.prisma.friendship.findFirst({
+      where: {
+        blockedById: userId,
+        OR: [
+          { requesterId: userId, receiverId: friendUserId },
+          { requesterId: friendUserId, receiverId: userId },
+        ],
+      },
+    });
+    if (!friendship) throw new NotFoundException('Blocage introuvable.');
+
+    await this.prisma.friendship.update({
+      where: { id: friendship.id },
+      data: {
+        status: FriendshipStatus.accepted,
+        blockedById: null,
+        blockedAt: null,
+      },
+    });
+    return { success: true };
+  }
+
+  async listBlocked(userId: string): Promise<FriendshipDTO[]> {
+    const friendships = await this.prisma.friendship.findMany({
+      where: {
+        blockedById: userId,
+        status: FriendshipStatus.rejected,
+      },
+      include: this.includeUsers(),
+      orderBy: { blockedAt: 'desc' },
+    });
+    return friendships.map((f) => this.toDto(f, userId));
+  }
+
+  /**
+   * Suggère des amis d'amis avec qui l'utilisateur n'est pas encore connecté.
+   * Classement : nombre d'amis en commun décroissant.
+   */
+  async suggestFriends(userId: string): Promise<FriendSuggestion[]> {
+    const myFriendIds = await this.getDirectFriendIds(userId);
+    if (myFriendIds.length === 0) return [];
+
+    const secondDegree = await this.prisma.friendship.findMany({
+      where: {
+        status: FriendshipStatus.accepted,
+        blockedById: null,
+        OR: [{ requesterId: { in: myFriendIds } }, { receiverId: { in: myFriendIds } }],
+      },
+      select: { requesterId: true, receiverId: true },
+    });
+
+    const counts = new Map<string, number>();
+    for (const f of secondDegree) {
+      for (const id of [f.requesterId, f.receiverId]) {
+        if (id === userId || myFriendIds.includes(id)) continue;
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    }
+
+    if (counts.size === 0) return [];
+
+    const userIds = [...counts.keys()];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      include: { profile: true },
+    });
+
+    return users
+      .filter((u) => u.profile)
+      .map((u) => ({
+        userId: u.id,
+        id: u.profile!.id,
+        firstName: u.profile!.firstName,
+        lastName: u.profile!.lastName,
+        city: u.profile!.city,
+        country: u.profile!.country,
+        photoUrl: u.profile!.photoUrl,
+        bio: u.profile!.bio,
+        phoneNumber: u.profile!.phoneNumber,
+        relation: 'none' as const,
+        mutualFriends: counts.get(u.id) ?? 0,
+      }))
+      .sort((a, b) => b.mutualFriends - a.mutualFriends)
+      .slice(0, 10);
+  }
+
   /** Amis acceptés. */
   async listFriends(userId: string): Promise<FriendshipDTO[]> {
     const friendships = await this.prisma.friendship.findMany({
       where: {
         status: FriendshipStatus.accepted,
+        blockedById: null,
         OR: [{ requesterId: userId }, { receiverId: userId }],
       },
       include: this.includeUsers(),
@@ -164,6 +297,7 @@ export class FriendshipsService {
       country: profile.country,
       photoUrl: profile.photoUrl,
       bio: profile.bio,
+      phoneNumber: profile.phoneNumber,
     };
     return {
       id: f.id,
@@ -172,7 +306,21 @@ export class FriendshipsService {
       receiverId: f.receiverId,
       friend,
       direction: isRequester ? 'outgoing' : 'incoming',
+      blockedById: f.blockedById,
+      blockedAt: f.blockedAt?.toISOString() ?? null,
       createdAt: f.createdAt.toISOString(),
     };
+  }
+
+  private async getDirectFriendIds(userId: string): Promise<string[]> {
+    const friendships = await this.prisma.friendship.findMany({
+      where: {
+        status: FriendshipStatus.accepted,
+        blockedById: null,
+        OR: [{ requesterId: userId }, { receiverId: userId }],
+      },
+      select: { requesterId: true, receiverId: true },
+    });
+    return friendships.map((f) => (f.requesterId === userId ? f.receiverId : f.requesterId));
   }
 }

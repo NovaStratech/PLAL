@@ -5,6 +5,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NetworkService } from '../network/network.service';
 import { haversineKm, type GeoPoint } from '../network/geocoding.service';
 
+export interface SearchOptions {
+  query?: string;
+  city?: string;
+  categoryId?: string;
+  radiusKm?: number;
+  maxDepth?: number;
+  originLatitude?: number;
+  originLongitude?: number;
+}
+
 type RecoWithRelations = Prisma.RecommendationGetPayload<{
   include: { category: true; user: { include: { profile: true } } };
 }>;
@@ -24,22 +34,35 @@ export class SearchService {
     private readonly network: NetworkService,
   ) {}
 
-  async search(
-    userId: string,
-    query: string,
-    city?: string,
-    categoryId?: string,
-    radiusKm?: number,
-  ): Promise<SearchResult[]> {
-    const q = query?.trim() ?? '';
+  async search(userId: string, options: SearchOptions = {}): Promise<SearchResult[]> {
+    const {
+      query: rawQuery,
+      city,
+      categoryId,
+      radiusKm,
+      maxDepth = 2,
+      originLatitude,
+      originLongitude,
+    } = options;
+    const q = rawQuery?.trim() ?? '';
 
-    const { level1, level2 } = await this.network.buildGraph(userId);
-    const reachableIds = [...level1, ...level2];
-    if (reachableIds.length === 0) return [];
+    const reachable = await this.network.findReachableUsers(userId, maxDepth);
+    if (reachable.size === 0) return [];
 
-    // Origine = position du chercheur (pour calcul de distance / filtre rayon).
+    const reachableIds = [...reachable.keys()];
+
+    // Pré-charger les profils publics de tous les utilisateurs accessibles (pour afficher la chaîne de confiance).
+    const pathUserIds = new Set<string>(reachableIds);
+    const reachableProfiles = await this.prisma.profile.findMany({
+      where: { userId: { in: [...pathUserIds] } },
+    });
+    const profileByUserId = new Map(reachableProfiles.map((p) => [p.userId, p]));
+
+    // Origine = position fournie par le client (ville recherchée) ou position du profil.
     let origin: GeoPoint | null = null;
-    if (radiusKm && radiusKm > 0) {
+    if (originLatitude != null && originLongitude != null) {
+      origin = { latitude: originLatitude, longitude: originLongitude };
+    } else if (radiusKm && radiusKm > 0) {
       const me = await this.prisma.profile.findUnique({ where: { userId } });
       if (me?.latitude != null && me?.longitude != null) {
         origin = { latitude: me.latitude, longitude: me.longitude };
@@ -61,8 +84,9 @@ export class SearchService {
       ? { city: { contains: city.trim(), mode: 'insensitive' } }
       : {};
 
-    const categoryFilter: Prisma.RecommendationWhereInput = categoryId?.trim()
-      ? { categoryId: categoryId.trim() }
+    const categoryIds = categoryId?.trim() ? await this.collectCategoryIds(categoryId.trim()) : [];
+    const categoryFilter: Prisma.RecommendationWhereInput = categoryIds.length
+      ? { categoryId: { in: categoryIds } }
       : {};
 
     const recos = await this.prisma.recommendation.findMany({
@@ -79,10 +103,14 @@ export class SearchService {
     const results: SearchResult[] = [];
     for (const reco of recos) {
       const ownerId = reco.userId;
-      const isDirect = level1.has(ownerId);
-      const visible = isDirect
-        ? true // un ami direct partage avec ses amis ET amis d'amis dans les deux cas
-        : reco.visibility === RecommendationVisibility.friends_of_friends;
+      const path = reachable.get(ownerId)!;
+      // Si la recommandation est une personne/service avec visibilité restreinte,
+      // seuls les amis directs la voient.
+      const isPersonOrService = reco.type === 'person' || reco.type === 'service';
+      const restricted =
+        reco.visibility === RecommendationVisibility.friends && isPersonOrService;
+      const isDirect = path.depth === 1;
+      const visible = isDirect ? true : !restricted;
 
       if (!visible) continue;
 
@@ -109,6 +137,9 @@ export class SearchService {
           isDirect ? RelationalDistance.DIRECT : RelationalDistance.FRIEND_OF_FRIEND,
           profile,
           distanceKm,
+          path.userIds,
+          path.depth,
+          profileByUserId,
         ),
       );
     }
@@ -128,12 +159,57 @@ export class SearchService {
     return results;
   }
 
+  private async collectCategoryIds(categoryId: string): Promise<string[]> {
+    const all = await this.prisma.category.findMany({ select: { id: true, parentId: true } });
+    const byParent = new Map<string, string[]>();
+    for (const c of all) {
+      if (c.parentId) {
+        byParent.set(c.parentId, [...(byParent.get(c.parentId) ?? []), c.id]);
+      }
+    }
+
+    const ids = new Set<string>([categoryId]);
+    const queue = [categoryId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const children = byParent.get(current) ?? [];
+      for (const childId of children) {
+        if (!ids.has(childId)) {
+          ids.add(childId);
+          queue.push(childId);
+        }
+      }
+    }
+    return [...ids];
+  }
+
   private toResult(
     reco: RecoWithRelations,
     distance: RelationalDistance,
     profile: NonNullable<RecoWithRelations['user']['profile']>,
     distanceKm: number | null = null,
+    path: string[] = [],
+    depth = 1,
+    profileByUserId?: Map<string, NonNullable<RecoWithRelations['user']['profile']>>,
   ): SearchResult {
+    const pathProfiles = path
+      .map((userId) => {
+        const p = profileByUserId?.get(userId);
+        if (!p) return null;
+        return {
+          userId: p.userId,
+          id: p.id,
+          firstName: p.firstName,
+          lastName: p.lastName,
+          city: p.city,
+          country: p.country,
+          photoUrl: p.photoUrl,
+          bio: p.bio,
+          phoneNumber: p.phoneNumber,
+        };
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null);
+
     return {
       recommendationId: reco.id,
       title: reco.title,
@@ -150,9 +226,13 @@ export class SearchService {
         country: profile.country,
         photoUrl: profile.photoUrl,
         bio: profile.bio,
+        phoneNumber: profile.phoneNumber,
       },
       distance,
       distanceKm,
+      path,
+      depth,
+      pathProfiles,
     };
   }
 }

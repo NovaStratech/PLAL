@@ -1,11 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { SearchResult } from '@plal/shared';
 import { RECOMMENDATION_TYPE_LABELS } from '@plal/shared';
 import { services } from '@/lib/services';
 import { ApiError } from '@/lib/api';
 import { Avatar, CategoryChip, DistanceBadge } from './ui';
+
+function formatTrustLabel(result: SearchResult): string {
+  const category = result.category.name.toLowerCase();
+  if (result.depth === 1) {
+    return `Ton ami ${result.helper.firstName} connaît un${category.endsWith('e') ? 'e' : ''} ${category}`;
+  }
+  const chain = result.pathProfiles.map((p) => p.firstName).join(' → ');
+  return `Ton réseau : ${chain} connaît un${category.endsWith('e') ? 'e' : ''} ${category}`;
+}
 
 export function SearchResultCard({ result }: { result: SearchResult }) {
   const [open, setOpen] = useState(false);
@@ -14,6 +24,7 @@ export function SearchResultCard({ result }: { result: SearchResult }) {
       result.city ? ` à ${result.city}` : ''
     }. Tu avais indiqué connaître quelqu'un de fiable. Tu peux me mettre en relation ?`,
   );
+  const [responseType, setResponseType] = useState<'phone' | 'email' | 'social' | ''>('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,7 +33,12 @@ export function SearchResultCard({ result }: { result: SearchResult }) {
     setLoading(true);
     setError('');
     try {
-      await services.createIntroduction(result.recommendationId, message);
+      await services.createIntroduction(
+        result.recommendationId,
+        message,
+        responseType || undefined,
+        result.depth > 1 ? result.pathProfiles[0]?.userId : undefined,
+      );
       setSent(true);
       setOpen(false);
     } catch (err) {
@@ -32,17 +48,24 @@ export function SearchResultCard({ result }: { result: SearchResult }) {
     }
   }
 
+  const trustLabel = formatTrustLabel(result);
+
   return (
     <div className="card">
       <div className="flex items-start gap-3">
-        <Avatar
-          firstName={result.helper.firstName}
-          lastName={result.helper.lastName}
-          photoUrl={result.helper.photoUrl}
-        />
+        <Link href={`/utilisateur/${result.helper.userId}`}>
+          <Avatar
+            firstName={result.helper.firstName}
+            lastName={result.helper.lastName}
+            photoUrl={result.helper.photoUrl}
+          />
+        </Link>
         <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-trust-700">{trustLabel}</p>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold">{result.helper.firstName}</p>
+            <Link href={`/utilisateur/${result.helper.userId}`} className="font-semibold hover:text-trust-700">
+              {result.helper.firstName}
+            </Link>
             <DistanceBadge distance={result.distance} />
           </div>
           <p className="mt-1 text-ink/80">
@@ -61,6 +84,12 @@ export function SearchResultCard({ result }: { result: SearchResult }) {
               {RECOMMENDATION_TYPE_LABELS[result.type]}
             </span>
           </div>
+          {result.depth > 1 && result.pathProfiles.length > 0 && (
+            <p className="mt-2 text-xs text-ink/50">
+              Chaîne de confiance ({result.depth} sauts) :{' '}
+              {result.pathProfiles.map((p) => p.firstName).join(' → ')}
+            </p>
+          )}
         </div>
       </div>
 
@@ -87,14 +116,30 @@ export function SearchResultCard({ result }: { result: SearchResult }) {
               Demander une mise en relation à {result.helper.firstName}
             </h3>
             <p className="mt-1 text-sm text-ink/60">
-              {result.helper.firstName} décidera s&apos;il souhaite te mettre en relation.
+              {trustLabel}. Choisis comment tu souhaites être recontacté.
             </p>
             <textarea
-              className="input mt-4 min-h-[120px] resize-none"
+              className="input mt-4 min-h-[100px] resize-none"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               maxLength={500}
             />
+            <div className="mt-3">
+              <label className="label" htmlFor={`response-type-${result.recommendationId}`}>
+                Mode de réponse souhaité
+              </label>
+              <select
+                id={`response-type-${result.recommendationId}`}
+                className="input"
+                value={responseType}
+                onChange={(e) => setResponseType(e.target.value as 'phone' | 'email' | 'social' | '')}
+              >
+                <option value="">Laisse choisir mon contact</option>
+                <option value="phone">Par téléphone</option>
+                <option value="email">Par email</option>
+                <option value="social">Sur les réseaux sociaux</option>
+              </select>
+            </div>
             {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
             <div className="mt-4 flex gap-3">
               <button onClick={() => setOpen(false)} className="btn-secondary flex-1">

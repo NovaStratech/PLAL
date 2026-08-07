@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { ApiError } from '@/lib/api';
 import { services } from '@/lib/services';
+import { VersionBadge } from '@/components/version-badge';
 
 export default function RegisterPage() {
   return (
@@ -58,9 +59,12 @@ function RegisterForm() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-cream px-5 py-10">
       <div className="w-full max-w-sm">
-        <Link href="/" className="mb-8 block text-center text-2xl font-bold text-trust-700">
-          PLAL
-        </Link>
+        <div className="mb-8 flex items-center justify-center gap-2">
+          <Link href="/" className="text-2xl font-bold text-trust-700">
+            PLAL
+          </Link>
+          <VersionBadge />
+        </div>
         <div className="card">
           <h1 className="text-xl font-semibold">Crée ton réseau de confiance</h1>
           <p className="mt-1 text-sm text-ink/60">Quelques secondes suffisent pour commencer.</p>

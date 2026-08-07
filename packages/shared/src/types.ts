@@ -16,6 +16,7 @@ export interface PublicProfile {
   country: string | null;
   photoUrl: string | null;
   bio: string | null;
+  phoneNumber: string | null;
 }
 
 export interface AuthUser {
@@ -35,6 +36,14 @@ export interface Category {
   id: string;
   slug: string;
   name: string;
+  parentId?: string | null;
+  children?: Category[];
+}
+
+export interface CategorySuggestionResponse {
+  success: true;
+  message: string;
+  suggestionId: string | null;
 }
 
 export interface Friendship {
@@ -44,6 +53,8 @@ export interface Friendship {
   receiverId: string;
   friend: PublicProfile & { userId: string };
   direction: 'incoming' | 'outgoing';
+  blockedById: string | null;
+  blockedAt: string | null;
   createdAt: string;
 }
 
@@ -68,19 +79,37 @@ export interface SearchResult {
   helper: PublicProfile & { userId: string };
   distance: RelationalDistance;
   distanceKm: number | null;
+  /** Chemin de confiance : IDs des intermédiaires + détenteur, sans l'initiateur. */
+  path: string[];
+  /** Profondeur relationnelle (1 = ami direct). */
+  depth: number;
+  /** Profils publics des intermédiaires + détenteur, dans l'ordre du chemin. */
+  pathProfiles: Array<PublicProfile & { userId: string }>;
+}
+
+export interface IntroductionStep {
+  id: string;
+  user: PublicProfile & { userId: string };
+  status: 'pending' | 'accepted' | 'declined';
+  order: number;
+  responseMessage: string | null;
 }
 
 export interface IntroductionRequest {
   id: string;
   message: string;
   responseMessage: string | null;
+  responseType: 'phone' | 'email' | 'social' | null;
+  responseValue: string | null;
   status: IntroductionRequestStatus;
   createdAt: string;
   recommendation: Pick<Recommendation, 'id' | 'title' | 'city'> & {
     category: Category;
+    helper: PublicProfile & { userId: string };
   };
   requester: PublicProfile & { userId: string };
-  recommender: PublicProfile & { userId: string };
+  currentStep: IntroductionStep | null;
+  steps: IntroductionStep[];
 }
 
 export interface NotificationItem {

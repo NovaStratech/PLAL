@@ -7,3 +7,5 @@ import { GeocodingService } from './geocoding.service';
   exports: [NetworkService, GeocodingService],
 })
 export class NetworkModule {}
+
+export { NetworkService };

@@ -1,4 +1,10 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import type { AuthResponse, AuthUser } from '@plal/shared';
@@ -72,6 +78,104 @@ export class AuthService {
     return this.toAuthUser(user.id, user.email, user.emailVerified, user.onboardingCompleted, user.profile);
   }
 
+  async forgotPassword(email: string): Promise<{ success: true }> {
+    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    // On répond toujours success pour ne pas révéler l'existence d'un compte.
+    if (!user) return { success: true };
+
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 heure
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordResetToken: token, passwordResetExpiresAt: expiresAt },
+    });
+
+    await this.sendTokenEmail('reset-password', user.email, token);
+    return { success: true };
+  }
+
+  async resetPassword(token: string, password: string): Promise<AuthResponse> {
+    const user = await this.prisma.user.findUnique({ where: { passwordResetToken: token } });
+    if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt <= new Date()) {
+      throw new BadRequestException('Lien de réinitialisation invalide ou expiré.');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+      },
+      include: { profile: true },
+    });
+
+    return this.buildAuthResponse(
+      updated.id,
+      updated.email,
+      updated.emailVerified,
+      updated.onboardingCompleted,
+      updated.profile,
+    );
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<{ success: true }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Mot de passe actuel incorrect.');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    return { success: true };
+  }
+
+  async requestEmailChange(userId: string, newEmail: string): Promise<{ success: true }> {
+    const normalized = newEmail.toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email: normalized } });
+    if (existing) {
+      throw new ConflictException('Cette adresse email est déjà utilisée.');
+    }
+
+    const token = randomBytes(32).toString('base64url');
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { emailChangeToken: token, emailChangePending: normalized },
+    });
+
+    await this.sendTokenEmail('confirm-email', normalized, token);
+    return { success: true };
+  }
+
+  async confirmEmailChange(token: string): Promise<AuthResponse> {
+    const user = await this.prisma.user.findUnique({ where: { emailChangeToken: token } });
+    if (!user || !user.emailChangePending) {
+      throw new BadRequestException('Lien de confirmation invalide.');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        email: user.emailChangePending,
+        emailChangeToken: null,
+        emailChangePending: null,
+        emailVerified: false,
+      },
+      include: { profile: true },
+    });
+
+    return this.buildAuthResponse(
+      updated.id,
+      updated.email,
+      updated.emailVerified,
+      updated.onboardingCompleted,
+      updated.profile,
+    );
+  }
+
   private buildAuthResponse(
     id: string,
     email: string,
@@ -107,9 +211,27 @@ export class AuthService {
             country: profile.country,
             photoUrl: profile.photoUrl,
             bio: profile.bio,
+            phoneNumber: profile.phoneNumber,
           }
         : null,
     };
+  }
+
+  /**
+   * Envoi d'un email contenant un token d'action.
+   * TODO: remplacer ce mock par un vrai service d'envoi (SendGrid, Brevo, AWS SES, etc.).
+   * En développement, le token est loggué pour pouvoir être utilisé facilement.
+   */
+  private async sendTokenEmail(
+    type: 'reset-password' | 'confirm-email',
+    email: string,
+    token: string,
+  ) {
+    const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
+    const path = type === 'reset-password' ? '/reset-password' : '/confirm-email';
+    const url = `${webOrigin}${path}?token=${encodeURIComponent(token)}`;
+    // eslint-disable-next-line no-console
+    console.log(`[EMAIL ${type.toUpperCase()}] to=${email} url=${url}`);
   }
 }
 
@@ -121,4 +243,5 @@ type ProfileLike = {
   country: string | null;
   photoUrl: string | null;
   bio: string | null;
+  phoneNumber: string | null;
 } | null;
