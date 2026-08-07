@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install -g pnpm@9.15.9 && pnpm install --no-frozen-lockfile --prod=false",
-  "buildCommand": "pnpm exec prisma generate && pnpm run build",
+  "buildCommand": "pnpm exec prisma migrate deploy && pnpm exec prisma generate && pnpm run build",
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.ts": {
